@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}{{ organization.code }} - {{ brand_name|default:"Papertrail" }}{% endblock %}
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ organization.code }} - {{ organization.name }}</h1>
+    {% if organization.description %}<p class="text-gray-600 dark:text-gray-400">{{ organization.description }}</p>{% endif %}
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2">
+        <div class="card">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Offices</h2>
+            {% if offices %}
+            <div class="space-y-3">
+                {% for office in offices %}
+                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div>
+                        <p class="font-medium text-gray-900 dark:text-white">{{ office.code }} - {{ office.name }}</p>
+                    </div>
+                    <a href="{% url 'organizations:office_detail' org_pk=organization.pk pk=office.pk %}" class="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm">View</a>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400">No offices in this organization.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div>
+        <div class="card">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Your Membership</h2>
+            {% if user_membership %}
+                {% if user_membership.is_approved %}
+                <span class="badge badge-green">{{ user_membership.get_role_display }}</span>
+                {% else %}
+                <span class="badge badge-yellow">Pending Approval</span>
+                {% endif %}
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">You are not a member of this organization.</p>
+            <form method="post" action="{% url 'organizations:request_org_membership' org_pk=organization.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary w-full">Request Membership</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

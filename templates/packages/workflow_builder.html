@@ -1,0 +1,2146 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ workflow.name }} - Workflow Builder - {{ brand_name|default:"Papertrail" }}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/drawflow.min.css' %}">
+<style>
+    /* Ensure consistent box-sizing for all Drawflow elements */
+    #drawflow, #drawflow * {
+        box-sizing: border-box;
+    }
+
+    /* Drawflow canvas */
+    #drawflow {
+        width: 100%;
+        height: calc(100vh - 300px);
+        min-height: 500px;
+        background: #f3f4f6;
+        background-size: 20px 20px;
+        background-image: radial-gradient(circle, #d1d5db 1px, transparent 1px);
+    }
+    .dark #drawflow {
+        background-color: #1f2937;
+        background-image: radial-gradient(circle, #4b5563 1px, transparent 1px);
+    }
+
+    /* Node base styling */
+    .drawflow .drawflow-node {
+        border-radius: 4px;
+        border: 2px solid #b264f2;
+        background: #ffffff;
+        min-width: 160px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .drawflow .drawflow-node.flow-start {
+        border-color: #10b981;
+    }
+    .drawflow .drawflow-node.flow-end {
+        border-color: #10b981;
+    }
+    .dark .drawflow .drawflow-node {
+        background: #374151;
+        color: white;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4);
+    }
+    .drawflow .drawflow-node:hover {
+        border-color: #4f46e5;
+        background: #f9fafb;
+        cursor: move;
+    }
+    .dark .drawflow .drawflow-node:hover {
+        background: #4b5563;
+    }
+    .drawflow .drawflow-node.selected {
+        border-color: #bcb610;
+        box-shadow: 0 0 0 3px #bcb61040;
+    }
+    /* Focus state: selected but not hovering */
+    .drawflow .drawflow-node.selected:not(:hover) {
+        border-color: #a3a310;
+        background: #fffef0;
+        box-shadow: 0 0 0 3px #a3a31040;
+    }
+    .dark .drawflow .drawflow-node.selected:not(:hover) {
+        background: #3d3d00;
+    }
+
+    /* Connector styling - force circular shape */
+    /* IMPORTANT: Override global .input class from Tailwind which sets width:100% */
+    .drawflow .drawflow-node .input,
+    .drawflow .drawflow-node .output {
+        width: 12px !important;
+        height: 12px !important;
+        background: #6366f1 !important;
+        border: 2px solid #ffffff !important;
+        border-width: 2px !important;
+        border-radius: 50% !important;
+        cursor: crosshair !important;
+        /* Reset Tailwind .input overrides */
+        padding: 0 !important;
+        box-sizing: border-box !important;
+    }
+    .drawflow .drawflow-node .input:hover,
+    .drawflow .drawflow-node .output:hover {
+        background: #bcb610 !important;
+        transform: scale(1.3);
+    }
+    .dark .drawflow .drawflow-node .input,
+    .dark .drawflow .drawflow-node .output {
+        border-color: #1f2937;
+    }
+
+    /* Connection lines */
+    .drawflow .connection .main-path {
+        stroke: #6366f1;
+        stroke-width: 2px;
+    }
+    .drawflow .connection .main-path:hover {
+        stroke: #bcb610;
+    }
+    .drawflow .connection .main-path.selected {
+        stroke: #bcb610;
+    }
+
+    /* Node content styling */
+    .drawflow .drawflow-node .node-header {
+        padding: 6px 8px !important;
+        border-bottom: 1px solid #e5e7eb;
+        font-weight: 600;
+        font-size: 11px;
+        text-transform: uppercase;
+        display: flex !important;
+        align-items: center;
+        gap: 0 !important;
+        border-radius: 2px 2px 0 0;
+    }
+    .dark .drawflow .drawflow-node .node-header {
+        border-color: #4b5563;
+    }
+    .drawflow .drawflow-node .node-header.stage { background: #e0e7ff; color: #6366f1; }
+    .drawflow .drawflow-node .node-header.action { background: #fce7f3; color: #ec4899; }
+    .drawflow .drawflow-node .node-header.flow-start { background: #d1fae5; color: #059669; }
+    .drawflow .drawflow-node .node-header.flow-end { background: #d1fae5; color: #059669; }
+    .dark .drawflow .drawflow-node .node-header.stage { background: rgba(99, 102, 241, 0.25); color: #a5b4fc; }
+    .dark .drawflow .drawflow-node .node-header.action { background: rgba(236, 72, 153, 0.25); color: #f9a8d4; }
+    .dark .drawflow .drawflow-node .node-header.flow-start { background: rgba(16, 185, 129, 0.25); color: #6ee7b7; }
+    .dark .drawflow .drawflow-node .node-header.flow-end { background: rgba(16, 185, 129, 0.25); color: #6ee7b7; }
+    .drawflow .drawflow-node .node-header svg { width: 14px; height: 14px; flex-shrink: 0; }
+    .drawflow .drawflow-node .node-header span { margin-left: 16px !important; white-space: nowrap; }
+    .drawflow .drawflow-node .node-header.no-icons svg { display: none; }
+    .drawflow .drawflow-node .node-body { padding: 8px; }
+    .drawflow .drawflow-node .node-name { font-weight: 500; font-size: 14px; margin-bottom: 4px; }
+    .drawflow .drawflow-node .node-type { font-size: 11px; color: #6b7280; }
+    .dark .drawflow .drawflow-node .node-type { color: #9ca3af; }
+
+    /* Node badges */
+    .node-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 8px;
+    }
+    .node-badge {
+        font-size: 10px;
+        padding: 2px 6px;
+        background: #f3f4f6;
+        color: #374151;
+        border-radius: 4px;
+    }
+    .dark .node-badge {
+        background: #4b5563;
+        color: #d1d5db;
+    }
+    .node-badge.optional {
+        background: #fef3c7;
+        color: #92400e;
+    }
+    .dark .node-badge.optional {
+        background: rgba(251, 191, 36, 0.2);
+        color: #fbbf24;
+    }
+
+    /* Hide default delete button (we use custom) */
+    .drawflow-delete { display: none !important; }
+
+    /* Stage node dual outputs (Yes/No) */
+    .drawflow .drawflow-node.stage .outputs {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .drawflow .drawflow-node.stage .output {
+        position: relative;
+    }
+    .drawflow .drawflow-node.stage .output::after {
+        content: attr(data-label);
+        position: absolute;
+        right: 16px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 10px;
+        font-weight: 500;
+        padding: 1px 4px;
+        border-radius: 3px;
+        white-space: nowrap;
+        pointer-events: none;
+    }
+    .drawflow .drawflow-node.stage .output.output_1::after {
+        content: 'Yes';
+        background: #d1fae5;
+        color: #059669;
+    }
+    .drawflow .drawflow-node.stage .output.output_2::after {
+        content: 'No';
+        background: #fee2e2;
+        color: #dc2626;
+    }
+    .dark .drawflow .drawflow-node.stage .output.output_1::after {
+        background: rgba(16, 185, 129, 0.25);
+        color: #6ee7b7;
+    }
+    .dark .drawflow .drawflow-node.stage .output.output_2::after {
+        background: rgba(239, 68, 68, 0.25);
+        color: #fca5a5;
+    }
+
+    /* Toolbar styling */
+    .toolbar-item {
+        cursor: grab;
+        padding: 7px 12px;
+        border: 1px solid #e5e7eb;
+        border-radius: 4px;
+        background: white;
+        transition: all 0.15s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .dark .toolbar-item {
+        border-color: #4b5563;
+        background: #374151;
+    }
+    .toolbar-item:hover {
+        border-color: #6366f1;
+        box-shadow: 0 2px 8px rgba(99, 102, 241, 0.15);
+        transform: translateY(-1px);
+    }
+    .toolbar-item:active {
+        cursor: grabbing;
+    }
+    .toolbar-item svg {
+        width: 16px;
+        height: 16px;
+        opacity: 0.7;
+    }
+    .toolbar-item.stage {
+        border-left: 3px solid #6366f1;
+    }
+    .toolbar-item.action {
+        border-left: 3px solid #ec4899;
+    }
+
+    /* Context menu */
+    .context-menu {
+        position: fixed;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+        padding: 4px 0;
+        min-width: 160px;
+        z-index: 1000;
+    }
+    .dark .context-menu {
+        background: #374151;
+        border-color: #4b5563;
+    }
+    .context-menu-item {
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .context-menu-item svg {
+        width: 16px;
+        height: 16px;
+        opacity: 0.7;
+    }
+    .context-menu-item:hover {
+        background: #f3f4f6;
+    }
+    .dark .context-menu-item:hover {
+        background: #4b5563;
+    }
+    .context-menu-item.danger {
+        color: #ef4444;
+    }
+    .context-menu-divider {
+        height: 1px;
+        background: #e5e7eb;
+        margin: 4px 0;
+    }
+    .dark .context-menu-divider {
+        background: #4b5563;
+    }
+
+    /* Toast notifications */
+    .toast-container {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 2000;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .toast {
+        padding: 12px 16px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        font-size: 14px;
+        max-width: 360px;
+        animation: toast-in 0.3s ease-out;
+    }
+    @keyframes toast-in {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .toast.success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+    .toast.error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+    .toast.info { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+    .dark .toast.success { background: #065f46; color: #d1fae5; border-color: #10b981; }
+    .dark .toast.error { background: #991b1b; color: #fee2e2; border-color: #ef4444; }
+    .dark .toast.info { background: #1e40af; color: #dbeafe; border-color: #3b82f6; }
+
+    /* Zoom controls */
+    .zoom-controls {
+        position: absolute;
+        bottom: 16px;
+        left: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        z-index: 10;
+    }
+    .zoom-btn {
+        width: 32px;
+        height: 32px;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .zoom-btn:hover { background: #f3f4f6; border-color: #6366f1; }
+    .zoom-btn svg { width: 16px; height: 16px; opacity: 0.7; }
+    .dark .zoom-btn { background: #374151; border-color: #4b5563; color: white; }
+    .dark .zoom-btn:hover { background: #4b5563; }
+    .zoom-level {
+        font-size: 11px;
+        text-align: center;
+        color: #6b7280;
+        padding: 2px 0;
+    }
+    .dark .zoom-level { color: #9ca3af; }
+
+    /* Mini-map */
+    .minimap {
+        position: absolute;
+        bottom: 16px;
+        right: 16px;
+        width: 150px;
+        height: 100px;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        overflow: hidden;
+        z-index: 10;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .dark .minimap {
+        background: #374151;
+        border-color: #4b5563;
+    }
+    .minimap-content {
+        width: 100%;
+        height: 100%;
+        position: relative;
+    }
+    .minimap-node {
+        position: absolute;
+        background: #6366f1;
+        border-radius: 2px;
+        min-width: 4px;
+        min-height: 3px;
+    }
+    .minimap-node.stage { background: #6366f1; }
+    .minimap-node.action { background: #ec4899; }
+    .minimap-node.flow-start { background: #10b981; }
+    .minimap-node.flow-end { background: #10b981; }
+    .minimap-viewport {
+        position: absolute;
+        border: 2px solid #bcb610;
+        background: rgba(188, 182, 16, 0.1);
+        border-radius: 2px;
+        pointer-events: none;
+    }
+    .minimap-header {
+        font-size: 9px;
+        color: #6b7280;
+        text-transform: uppercase;
+        padding: 4px 6px;
+        border-bottom: 1px solid #e5e7eb;
+        background: #f9fafb;
+    }
+    .dark .minimap-header {
+        color: #9ca3af;
+        border-color: #4b5563;
+        background: #1f2937;
+    }
+
+    /* Modal styling */
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1001;
+    }
+    .modal-content {
+        background: white;
+        border-radius: 8px;
+        padding: 24px;
+        max-width: 500px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+    .dark .modal-content {
+        background: #1f2937;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="workflowBuilder()" x-init="init()">
+    <!-- Header -->
+    <div class="mb-4 flex justify-between items-center">
+        <div>
+            <a href="{% url 'packages:workflow_list' %}" class="text-blue-600 dark:text-blue-400 hover:underline text-sm">
+                &larr; Back to Workflows
+            </a>
+            <div class="flex items-center gap-2 mt-1 group">
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-white" x-text="workflowName"></h1>
+                <button @click="openWorkflowRename()"
+                        class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Rename workflow">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                    </svg>
+                </button>
+            </div>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                Version {{ workflow.version }}
+                {% if workflow.organization %} | {{ workflow.organization.name }}{% else %} | Shared{% endif %}
+            </p>
+        </div>
+        <div class="flex items-center space-x-3">
+            <span x-show="saving" class="text-sm text-gray-500 dark:text-gray-400">
+                <svg class="animate-spin -ml-1 mr-2 h-4 w-4 inline" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                Saving...
+            </span>
+            <span x-show="lastSaved" x-text="'Saved ' + lastSaved" class="text-sm text-green-600 dark:text-green-400"></span>
+            <div class="flex border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden">
+                <button @click="undo()" class="px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 border-r border-gray-200 dark:border-gray-700"
+                        :class="{ 'opacity-40 cursor-not-allowed': historyIndex <= 0 }"
+                        :disabled="historyIndex <= 0"
+                        title="Undo (Ctrl+Z)">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 10h10a5 5 0 015 5v2M3 10l4-4m-4 4l4 4"/>
+                    </svg>
+                </button>
+                <button @click="redo()" class="px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        :class="{ 'opacity-40 cursor-not-allowed': historyIndex >= history.length - 1 }"
+                        :disabled="historyIndex >= history.length - 1"
+                        title="Redo (Ctrl+Y)">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 10H11a5 5 0 00-5 5v2M21 10l-4-4m4 4l-4 4"/>
+                    </svg>
+                </button>
+            </div>
+            <button @click="exportWorkflow()" class="btn btn-secondary" title="Copy workflow JSON to clipboard">
+                <svg class="w-4 h-4 mr-1 inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                </svg>
+                Export
+            </button>
+            <button @click="saveWorkflow()" class="btn btn-primary" :disabled="saving">
+                Save Workflow
+            </button>
+        </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="card mb-4">
+        <div class="flex flex-wrap gap-6">
+            <div>
+                <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Stage Nodes</h3>
+                <div class="flex flex-wrap gap-2">
+                    {% for stage_type in stage_action_types %}
+                    <div class="toolbar-item stage"
+                         draggable="true"
+                         @dragstart="onDragStart($event, 'stage', '{{ stage_type.value }}')"
+                         @dragend="onDragEnd($event)"
+                         title="{% if stage_type.value == 'APPROVE' %}Approval stage - requires formal sign-off from assigned office{% elif stage_type.value == 'COORD' %}Coordination stage - routes to offices for coordination and input{% elif stage_type.value == 'CONCUR' %}Concurrence stage - requires agreement from multiple parties{% else %}{{ stage_type.label }} stage{% endif %}">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            {% if stage_type.value == 'APPROVE' %}
+                            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            {% elif stage_type.value == 'COORD' %}
+                            <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            {% elif stage_type.value == 'CONCUR' %}
+                            <path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                            {% else %}
+                            <circle cx="12" cy="12" r="10"/>
+                            {% endif %}
+                        </svg>
+                        <span class="text-sm font-medium">{{ stage_type.label }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div>
+                <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Action Nodes</h3>
+                <div class="flex flex-wrap gap-2">
+                    {% for action_type in action_types %}
+                    {% if action_type.value == 'webhook' %}
+                    <div class="toolbar-item action opacity-50 cursor-not-allowed"
+                         draggable="false"
+                         title="Webhook - Send data to external systems (Coming Soon)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                        </svg>
+                        <span class="text-sm font-medium">{{ action_type.label }}</span>
+                        <span class="text-xs text-gray-400 ml-1">(Soon)</span>
+                    </div>
+                    {% else %}
+                    <div class="toolbar-item action"
+                         draggable="true"
+                         @dragstart="onDragStart($event, 'action', '{{ action_type.value }}')"
+                         @dragend="onDragEnd($event)"
+                         title="{% if action_type.value == 'send_alert' %}Send in-app notification to specified users or offices{% elif action_type.value == 'send_email' %}Send email notification to recipients{% elif action_type.value == 'complete' %}Mark the workflow as successfully completed{% elif action_type.value == 'reject' %}Reject the package and end the workflow{% elif action_type.value == 'wait' %}Pause workflow for a specified duration{% else %}{{ action_type.label }} action{% endif %}">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            {% if action_type.value == 'send_alert' %}
+                            <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                            {% elif action_type.value == 'send_email' %}
+                            <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                            {% elif action_type.value == 'complete' %}
+                            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            {% elif action_type.value == 'reject' %}
+                            <path d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            {% elif action_type.value == 'wait' %}
+                            <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            {% else %}
+                            <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                            {% endif %}
+                        </svg>
+                        <span class="text-sm font-medium">{{ action_type.label }}</span>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            <div>
+                <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Flow Control</h3>
+                <div class="flex flex-wrap gap-2">
+                    <div class="toolbar-item flow-start"
+                         :class="{ 'opacity-50 cursor-not-allowed': hasStartNode }"
+                         :draggable="!hasStartNode"
+                         @dragstart="!hasStartNode && onDragStart($event, 'flow', 'start')"
+                         @dragend="onDragEnd($event)"
+                         :title="hasStartNode ? 'Start node already exists' : 'Drag to add Start node'"
+                         style="border-left: 3px solid #10b981;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M8 12l4-4m0 0l4 4m-4-4v8"/>
+                        </svg>
+                        <span class="text-sm font-medium">Start</span>
+                        <span x-show="hasStartNode" class="text-xs text-gray-400 ml-1">(Used)</span>
+                    </div>
+                    <div class="toolbar-item flow-end"
+                         :class="{ 'opacity-50 cursor-not-allowed': hasEndNode }"
+                         :draggable="!hasEndNode"
+                         @dragstart="!hasEndNode && onDragStart($event, 'flow', 'end')"
+                         @dragend="onDragEnd($event)"
+                         :title="hasEndNode ? 'End node already exists' : 'Drag to add End node'"
+                         style="border-left: 3px solid #10b981;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M8 12l3 3 5-5"/>
+                        </svg>
+                        <span class="text-sm font-medium">End</span>
+                        <span x-show="hasEndNode" class="text-xs text-gray-400 ml-1">(Used)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Canvas -->
+    <div class="card p-0 overflow-hidden relative">
+        <div id="drawflow"
+             @drop="onDrop($event)"
+             @dragover.prevent
+             @contextmenu.prevent="onCanvasRightClick($event)">
+        </div>
+
+        <!-- Zoom Controls -->
+        <div class="zoom-controls">
+            <button class="zoom-btn" @click="zoomIn()" title="Zoom In">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7"/>
+                </svg>
+            </button>
+            <div class="zoom-level" x-text="Math.round(zoomLevel * 100) + '%'"></div>
+            <button class="zoom-btn" @click="zoomOut()" title="Zoom Out">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7"/>
+                </svg>
+            </button>
+            <button class="zoom-btn" @click="zoomReset()" title="Reset Zoom" style="margin-top: 4px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 4v5h5M20 20v-5h-5M4 15a8 8 0 0014.29-4.21M20 9a8 8 0 00-14.29 4.21"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Mini-map -->
+        <div class="minimap" x-show="showMinimap">
+            <div class="minimap-header">Overview</div>
+            <div class="minimap-content" x-ref="minimapContent">
+                <template x-for="node in minimapNodes" :key="node.id">
+                    <div class="minimap-node" :class="node.class"
+                         :style="{ left: node.x + 'px', top: node.y + 'px', width: node.w + 'px', height: node.h + 'px' }">
+                    </div>
+                </template>
+                <div class="minimap-viewport" :style="minimapViewport"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container">
+        <template x-for="(toast, index) in toasts" :key="index">
+            <div class="toast" :class="toast.type" x-text="toast.message"></div>
+        </template>
+    </div>
+
+    <!-- Context Menu -->
+    <div x-show="contextMenu.show"
+         x-cloak
+         class="context-menu"
+         :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+         @click.away="contextMenu.show = false"
+         @keydown.escape="contextMenu.show = false">
+        <template x-if="contextMenu.nodeId">
+            <div>
+                <div class="context-menu-item" @click="renameNode(contextMenu.nodeId)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                    </svg>
+                    Rename
+                </div>
+                <template x-if="nodeData[contextMenu.nodeId]?.node_type !== 'flow'">
+                    <div class="context-menu-item" @click="editNode(contextMenu.nodeId)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                        Edit Properties
+                    </div>
+                </template>
+                <div class="context-menu-item" @click="duplicateNode(contextMenu.nodeId)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    </svg>
+                    Duplicate
+                </div>
+                <div class="context-menu-divider"></div>
+                <div class="context-menu-item danger" @click="deleteNode(contextMenu.nodeId)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                    Delete
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Rename Modal (simple prompt) -->
+    <div x-show="renameModal.show" x-cloak class="modal-overlay" @click.self="renameModal.show = false">
+        <div class="modal-content" style="max-width: 360px;">
+            <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Rename Node</h2>
+            <form @submit.prevent="saveRename()">
+                <input type="text"
+                       x-model="renameModal.name"
+                       x-ref="renameInput"
+                       class="input w-full"
+                       placeholder="Enter node name"
+                       required>
+                <div class="flex justify-between mt-4">
+                    <button type="button" @click="deleteFromRenameModal()" class="btn bg-red-600 hover:bg-red-700 text-white">
+                        <svg class="w-4 h-4 mr-1 inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                        Delete
+                    </button>
+                    <div class="flex space-x-3">
+                        <button type="button" @click="renameModal.show = false" class="btn btn-secondary">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Confirm Delete Modal -->
+    <div x-show="confirmModal.show" x-cloak class="modal-overlay" @click.self="confirmModal.show = false">
+        <div class="modal-content" style="max-width: 400px;">
+            <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-2">Delete Node</h2>
+            <p class="text-gray-600 dark:text-gray-400 mb-4">Are you sure you want to delete this node? This action cannot be undone.</p>
+            <div class="flex justify-end gap-3">
+                <button type="button" @click="confirmModal.show = false" class="btn btn-secondary">Cancel</button>
+                <button type="button" @click="confirmDelete()" class="btn bg-red-600 hover:bg-red-700 text-white">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Workflow Rename Modal -->
+    <div x-show="workflowRenameModal.show" x-cloak class="modal-overlay" @click.self="workflowRenameModal.show = false">
+        <div class="modal-content" style="max-width: 400px;">
+            <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Rename Workflow</h2>
+            <form @submit.prevent="saveWorkflowRename()">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Workflow Name</label>
+                    <input type="text"
+                           x-model="workflowRenameModal.name"
+                           x-ref="workflowNameInput"
+                           class="input w-full"
+                           required
+                           placeholder="Enter workflow name">
+                </div>
+                <div class="flex justify-end gap-3">
+                    <button type="button" @click="workflowRenameModal.show = false" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium rounded-md">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Node Edit Modal -->
+    <div x-show="editModal.show" x-cloak class="modal-overlay" @click.self="editModal.show = false">
+        <div class="modal-content">
+            <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4" x-text="editModal.title"></h2>
+            <form @submit.prevent="saveNodeEdit()">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                        <input type="text" x-model="editModal.data.name" class="input w-full" required>
+                    </div>
+
+                    <!-- Stage-specific fields -->
+                    <template x-if="editModal.nodeType === 'stage'">
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Action Type</label>
+                                <select x-model="editModal.data.action_type" class="input w-full">
+                                    {% for stage_type in stage_action_types %}
+                                    <option value="{{ stage_type.value }}">{{ stage_type.label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Multi-Office Rule</label>
+                                <select x-model="editModal.data.multi_office_rule" class="input w-full">
+                                    <option value="any">Any (first completion advances)</option>
+                                    <option value="all">All (all offices must complete)</option>
+                                </select>
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">When multiple offices are assigned to this stage</p>
+                            </div>
+                            <div class="flex items-center">
+                                <input type="checkbox" x-model="editModal.data.is_optional" class="form-checkbox">
+                                <label class="ml-2 text-sm text-gray-700 dark:text-gray-300">Optional Stage</label>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Timeout (days)</label>
+                                <input type="number" x-model="editModal.data.timeout_days" class="input w-full" min="0">
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Action-specific fields -->
+                    <template x-if="editModal.nodeType === 'action'">
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Action Type</label>
+                                <select x-model="editModal.data.action_type" class="input w-full">
+                                    {% for action_type in action_types %}
+                                    <option value="{{ action_type.value }}">{{ action_type.label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Execution Mode</label>
+                                <select x-model="editModal.data.execution_mode" class="input w-full">
+                                    {% for mode in execution_modes %}
+                                    <option value="{{ mode.value }}">{{ mode.label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Flow node - simple info only -->
+                    <template x-if="editModal.nodeType === 'flow'">
+                        <div class="text-sm text-gray-500 dark:text-gray-400">
+                            <p x-show="editModal.data.action_type === 'start'">
+                                This is the workflow entry point. Documents entering this workflow will begin here.
+                            </p>
+                            <p x-show="editModal.data.action_type === 'end'">
+                                This is the workflow exit point. Documents reaching this node complete the workflow.
+                            </p>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="flex justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <button type="button" @click="deleteFromEditModal()" class="btn bg-red-600 hover:bg-red-700 text-white">
+                        <svg class="w-4 h-4 mr-1 inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                        Delete
+                    </button>
+                    <div class="flex space-x-3">
+                        <button type="button" @click="editModal.show = false" class="btn btn-secondary">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/drawflow.min.js' %}"></script>
+<script>
+// Store Drawflow instance outside Alpine to prevent Proxy interference
+let _drawflowEditor = null;
+
+function workflowBuilder() {
+    return {
+        // Use getter to access the raw Drawflow instance (not proxied by Alpine)
+        get editor() { return _drawflowEditor; },
+        nodeIdCounter: 1,
+        saving: false,
+        lastSaved: null,
+        contextMenu: {
+            show: false,
+            x: 0,
+            y: 0,
+            nodeId: null
+        },
+        editModal: {
+            show: false,
+            title: '',
+            nodeId: null,
+            nodeType: null,
+            data: {}
+        },
+        renameModal: {
+            show: false,
+            nodeId: null,
+            name: ''
+        },
+        confirmModal: {
+            show: false,
+            nodeId: null
+        },
+        nodeData: {},  // Store our custom node data
+        hasStartNode: false,  // Track if start node exists
+        hasEndNode: false,    // Track if end node exists
+        workflowName: '{{ workflow.name|escapejs }}',
+        workflowRenameModal: {
+            show: false,
+            name: ''
+        },
+        toasts: [],
+        zoomLevel: 1,
+        history: [],
+        historyIndex: -1,
+        maxHistory: 50,
+        showMinimap: true,
+        minimapNodes: [],
+        minimapViewport: {},
+
+        init() {
+            const container = document.getElementById('drawflow');
+
+            // Create Drawflow instance and store in global variable
+            // This prevents Alpine's Proxy from interfering with Drawflow's internal 'this' references
+            _drawflowEditor = new Drawflow(container);
+            _drawflowEditor.reroute = true;
+            _drawflowEditor.reroute_fix_curvature = true;
+            _drawflowEditor.force_first_input = false;
+
+            // Register node events - use arrow function to maintain correct 'this'
+            const self = this;
+            _drawflowEditor.on('nodeRemoved', (id) => {
+                delete self.nodeData[id];
+            });
+
+            // CUSTOM DRAG HANDLER: Bypasses Drawflow's broken internal data access
+            // The issue is that Drawflow's position() function can't reliably access
+            // node data when integrated with Alpine.js. We handle node dragging ourselves.
+            let customDrag = {
+                active: false,
+                nodeEl: null,
+                nodeId: null,
+                startX: 0,
+                startY: 0,
+                nodeStartX: 0,
+                nodeStartY: 0
+            };
+
+            // Patch Drawflow's position method BEFORE start() to suppress errors during node drag
+            const originalPosition = _drawflowEditor.position;
+            _drawflowEditor.position = function(e) {
+                // Skip node drags entirely - our custom handler deals with them
+                if (this.drag && this.ele_selected && this.ele_selected.classList.contains('drawflow-node')) {
+                    // Check if data exists for this node
+                    const nodeId = this.ele_selected.id?.slice(5);
+                    const data = this.drawflow?.drawflow?.[this.module]?.data?.[nodeId];
+                    if (!data) {
+                        // Silently skip - our custom handler below will do the actual dragging
+                        return;
+                    }
+                }
+                return originalPosition.call(this, e);
+            };
+
+            // Patch Drawflow's dragEnd method to fix connection creation bug
+            // When Alpine.js Proxy interferes, node data can be undefined causing errors
+            // We implement fully custom connection handling that bypasses all Proxy issues
+            const originalDragEnd = _drawflowEditor.dragEnd;
+            _drawflowEditor.dragEnd = function(e) {
+                // If we're creating a connection, handle it ourselves
+                if (this.connection) {
+                    // Find the target element (input connector)
+                    const targetEl = document.elementFromPoint(e.clientX, e.clientY);
+                    const inputEl = targetEl?.closest('.input');
+
+                    if (inputEl) {
+                        // Get target node info
+                        const targetNodeEl = inputEl.closest('.drawflow-node');
+                        if (targetNodeEl) {
+                            const targetNodeId = targetNodeEl.id.replace('node-', '');
+                            const inputClass = inputEl.classList[1]; // e.g., "input_1"
+
+                            // Get source node info from the output element we started dragging from
+                            const sourceNodeEl = this.ele_selected?.closest('.drawflow-node');
+                            if (sourceNodeEl) {
+                                const sourceNodeId = sourceNodeEl.id.replace('node-', '');
+                                const outputClass = this.ele_selected.classList[1]; // e.g., "output_1"
+
+                                // Directly manipulate Drawflow's internal data structure
+                                // to avoid Proxy interference
+                                const module = this.module;
+                                const dataStore = this.drawflow.drawflow[module].data;
+
+                                // Get raw node data objects
+                                const sourceNode = dataStore[sourceNodeId];
+                                const targetNode = dataStore[targetNodeId];
+
+                                if (sourceNode && targetNode) {
+                                    // Ensure outputs/inputs objects exist
+                                    if (!sourceNode.outputs) sourceNode.outputs = {};
+                                    if (!sourceNode.outputs[outputClass]) sourceNode.outputs[outputClass] = { connections: [] };
+                                    if (!targetNode.inputs) targetNode.inputs = {};
+                                    if (!targetNode.inputs[inputClass]) targetNode.inputs[inputClass] = { connections: [] };
+
+                                    // Check if connection already exists
+                                    const existingConn = sourceNode.outputs[outputClass].connections.find(
+                                        c => c.node === targetNodeId && c.output === inputClass
+                                    );
+
+                                    if (!existingConn) {
+                                        // Add connection to source node's outputs
+                                        sourceNode.outputs[outputClass].connections.push({
+                                            node: targetNodeId,
+                                            output: inputClass
+                                        });
+
+                                        // Add connection to target node's inputs
+                                        targetNode.inputs[inputClass].connections.push({
+                                            node: sourceNodeId,
+                                            input: outputClass
+                                        });
+
+                                        // Draw the connection SVG
+                                        const connection = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                                        connection.classList.add('connection');
+                                        connection.classList.add(`node_in_node-${targetNodeId}`);
+                                        connection.classList.add(`node_out_node-${sourceNodeId}`);
+                                        connection.classList.add(`${outputClass}`);
+                                        connection.classList.add(`${inputClass}`);
+
+                                        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                                        path.classList.add('main-path');
+                                        path.setAttributeNS(null, 'd', '');
+                                        connection.appendChild(path);
+                                        this.precanvas.appendChild(connection);
+
+                                        // Update the connection path
+                                        this.updateConnectionNodes(`node-${sourceNodeId}`);
+                                        this.updateConnectionNodes(`node-${targetNodeId}`);
+
+                                        // Dispatch event
+                                        this.dispatch('connectionCreated', {
+                                            output_id: sourceNodeId,
+                                            input_id: targetNodeId,
+                                            output_class: outputClass,
+                                            input_class: inputClass
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Clean up the temporary connection line
+                    if (this.connection_ele) {
+                        this.connection_ele.remove();
+                    }
+                    this.connection = false;
+                    this.connection_ele = null;
+                    this.ele_selected = null;
+                    return;
+                }
+
+                // For non-connection drag ends, use the original
+                try {
+                    return originalDragEnd.call(this, e);
+                } catch (err) {
+                    console.warn('DragEnd error:', err.message);
+                    this.drag = false;
+                    this.ele_selected = null;
+                }
+            };
+
+            _drawflowEditor.start();
+
+            container.addEventListener('mousedown', (e) => {
+                const nodeEl = e.target.closest('.drawflow-node');
+                if (!nodeEl) return;
+
+                // Don't interfere with connection creation (clicking on inputs/outputs)
+                if (e.target.closest('.input') || e.target.closest('.output')) return;
+
+                // Don't interfere with form elements
+                if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+
+                const nodeId = nodeEl.id.replace('node-', '');
+
+                // Start custom drag tracking
+                customDrag.active = true;
+                customDrag.nodeEl = nodeEl;
+                customDrag.nodeId = nodeId;
+                customDrag.startX = e.clientX;
+                customDrag.startY = e.clientY;
+                customDrag.nodeStartX = nodeEl.offsetLeft;
+                customDrag.nodeStartY = nodeEl.offsetTop;
+
+                // Prevent Drawflow's drag from activating
+                _drawflowEditor.drag = false;
+            });
+
+            container.addEventListener('mousemove', (e) => {
+                if (!customDrag.active || !customDrag.nodeEl) return;
+
+                // Calculate delta in screen coordinates, adjust for zoom
+                const deltaX = (e.clientX - customDrag.startX) / _drawflowEditor.zoom;
+                const deltaY = (e.clientY - customDrag.startY) / _drawflowEditor.zoom;
+
+                // Update node position
+                const newX = customDrag.nodeStartX + deltaX;
+                const newY = customDrag.nodeStartY + deltaY;
+
+                customDrag.nodeEl.style.left = newX + 'px';
+                customDrag.nodeEl.style.top = newY + 'px';
+
+                // Update Drawflow's internal data structure
+                const data = _drawflowEditor.drawflow.drawflow[_drawflowEditor.module].data[customDrag.nodeId];
+                if (data) {
+                    data.pos_x = newX;
+                    data.pos_y = newY;
+                }
+
+                // Update connection lines
+                _drawflowEditor.updateConnectionNodes('node-' + customDrag.nodeId);
+            });
+
+            const endCustomDrag = () => {
+                if (customDrag.active && customDrag.nodeId) {
+                    // Dispatch nodeMoved event if position changed
+                    const nodeEl = customDrag.nodeEl;
+                    if (nodeEl && (nodeEl.offsetLeft !== customDrag.nodeStartX || nodeEl.offsetTop !== customDrag.nodeStartY)) {
+                        _drawflowEditor.dispatch('nodeMoved', customDrag.nodeId);
+                    }
+                }
+                customDrag.active = false;
+                customDrag.nodeEl = null;
+                customDrag.nodeId = null;
+            };
+
+            container.addEventListener('mouseup', endCustomDrag);
+            container.addEventListener('mouseleave', endCustomDrag);
+
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                // Ctrl+Z for undo
+                if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.undo();
+                }
+                // Ctrl+Y or Ctrl+Shift+Z for redo
+                if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'z')) {
+                    e.preventDefault();
+                    this.redo();
+                }
+                // Delete key for selected node
+                if (e.key === 'Delete' && _drawflowEditor.node_selected) {
+                    const nodeId = _drawflowEditor.node_selected.id.replace('node-', '');
+                    const nodeData = _drawflowEditor.drawflow.drawflow[_drawflowEditor.module].data[nodeId];
+                    if (nodeData?.data?.nodeId) {
+                        this.deleteNode(nodeData.data.nodeId);
+                    }
+                }
+            });
+
+            // Save state on node/connection changes
+            _drawflowEditor.on('nodeCreated', () => {
+                this.$nextTick(() => {
+                    this.saveState();
+                    this.updateMinimap();
+                });
+            });
+            _drawflowEditor.on('connectionCreated', () => {
+                this.$nextTick(() => this.saveState());
+            });
+            _drawflowEditor.on('connectionRemoved', () => {
+                this.$nextTick(() => this.saveState());
+            });
+            _drawflowEditor.on('nodeRemoved', () => {
+                this.$nextTick(() => this.updateMinimap());
+            });
+            _drawflowEditor.on('nodeMoved', () => {
+                this.$nextTick(() => this.updateMinimap());
+            });
+            _drawflowEditor.on('translate', () => {
+                this.$nextTick(() => this.updateMinimap());
+            });
+            _drawflowEditor.on('zoom', () => {
+                this.zoomLevel = _drawflowEditor.zoom;
+                this.$nextTick(() => this.updateMinimap());
+            });
+
+            // Load existing workflow data
+            this.loadWorkflow();
+        },
+
+        onDragStart(event, nodeType, actionType) {
+            event.dataTransfer.setData('node_type', nodeType);
+            event.dataTransfer.setData('action_type', actionType);
+            event.dataTransfer.effectAllowed = 'move';
+        },
+
+        onDragEnd(event) {
+            // Cleanup
+        },
+
+        onDrop(event) {
+            event.preventDefault();
+            const nodeType = event.dataTransfer.getData('node_type');
+            const actionType = event.dataTransfer.getData('action_type');
+
+            if (!nodeType) return;
+
+            // Use precanvas bounding rect - it accounts for transforms automatically
+            const precanvas = this.editor.precanvas;
+            const precanvasRect = precanvas.getBoundingClientRect();
+
+            // Calculate canvas coordinates from screen position
+            const canvasX = (event.clientX - precanvasRect.x) / this.editor.zoom;
+            const canvasY = (event.clientY - precanvasRect.y) / this.editor.zoom;
+
+            // Center the node on the drop point
+            const nodeOffsetX = 80;  // half of ~160px width
+            const nodeOffsetY = 40;  // half of ~80px height
+
+            this.addNode(nodeType, actionType, canvasX - nodeOffsetX, canvasY - nodeOffsetY);
+        },
+
+        addNode(nodeType, actionType, x, y) {
+            // Prevent duplicate start/end nodes
+            if (nodeType === 'flow') {
+                if (actionType === 'start' && this.hasStartNode) {
+                    this.showToast('Only one Start node is allowed', 'error');
+                    return null;
+                }
+                if (actionType === 'end' && this.hasEndNode) {
+                    this.showToast('Only one End node is allowed', 'error');
+                    return null;
+                }
+            }
+
+            const nodeId = this.nodeIdCounter++;
+            const name = this.getDefaultNodeName(nodeType, actionType);
+
+            // Store node data - use explicit object creation to ensure Alpine reactivity
+            const nodeDataEntry = {
+                node_type: nodeType,
+                action_type: actionType,
+                name: name,
+                multi_office_rule: 'any',  // Default: first completion advances
+                is_optional: false,
+                timeout_days: null,
+                execution_mode: 'inline',
+                action_config: {}
+            };
+
+            // Assign to nodeData object
+            this.nodeData[nodeId] = nodeDataEntry;
+
+            // Track start/end node usage
+            if (nodeType === 'flow') {
+                if (actionType === 'start') this.hasStartNode = true;
+                if (actionType === 'end') this.hasEndNode = true;
+            }
+
+            // Create HTML for the node
+            const html = this.createNodeHTML(nodeId, nodeType, name, actionType);
+
+            // Determine input/output counts based on node type
+            let numInputs = 1;
+            let numOutputs = 1;
+
+            if (nodeType === 'stage') {
+                numOutputs = 2;  // Yes (output_1) and No (output_2) paths
+            } else if (nodeType === 'flow') {
+                if (actionType === 'start') {
+                    numInputs = 0;  // Start has no inputs
+                    numOutputs = 1;
+                } else if (actionType === 'end') {
+                    numInputs = 1;
+                    numOutputs = 0;  // End has no outputs
+                }
+            } else if (nodeType === 'action' && actionType === 'complete') {
+                numOutputs = 0;
+            }
+
+            // Determine CSS class for the node
+            let nodeClass = nodeType;
+            if (nodeType === 'flow') {
+                nodeClass = actionType === 'start' ? 'flow-start' : 'flow-end';
+            }
+
+            this.editor.addNode(
+                `node_${nodeId}`,
+                numInputs,
+                numOutputs,
+                x,
+                y,
+                nodeClass,
+                { nodeId: nodeId },
+                html
+            );
+
+            return nodeId;
+        },
+
+        createNodeHTML(nodeId, nodeType, name, actionType) {
+            let headerClass = nodeType === 'stage' ? 'stage' : 'action';
+            if (nodeType === 'flow') {
+                headerClass = actionType === 'start' ? 'flow-start' : 'flow-end';
+            }
+            const typeLabel = this.getActionTypeLabel(nodeType, actionType);
+            const icon = this.getNodeIcon(nodeType, actionType);
+            const nodeData = this.nodeData[nodeId] || {};
+
+            // Build badges HTML
+            let badgesHtml = '';
+            if (nodeType === 'stage') {
+                const badges = [];
+                if (nodeData.is_optional) {
+                    badges.push('<span class="node-badge optional">Optional</span>');
+                } else {
+                    badges.push('<span class="node-badge">Required</span>');
+                }
+                if (nodeData.timeout_days) {
+                    badges.push(`<span class="node-badge">${nodeData.timeout_days}d timeout</span>`);
+                }
+                if (badges.length > 0) {
+                    badgesHtml = `<div class="node-badges">${badges.join('')}</div>`;
+                }
+            }
+
+            // Flow nodes have a simpler display
+            const headerLabel = nodeType === 'flow' ? actionType.toUpperCase() : nodeType.toUpperCase();
+
+            return `
+                <div class="node-content" data-node-id="${nodeId}" ondblclick="Alpine.$data(document.querySelector('[x-data]')).editNode(${nodeId})">
+                    <div class="node-header ${headerClass}">
+                        ${icon}
+                        <span>${headerLabel}</span>
+                    </div>
+                    <div class="node-body">
+                        <div class="node-name">${name}</div>
+                        <div class="node-type">${typeLabel}</div>
+                        ${badgesHtml}
+                    </div>
+                </div>
+            `;
+        },
+
+        getNodeIcon(nodeType, actionType) {
+            const stageIcons = {
+                'APPROVE': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+                'COORD': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>',
+                'CONCUR': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>'
+            };
+            const actionIcons = {
+                'send_alert': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>',
+                'send_email': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>',
+                'complete': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+                'reject': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+                'wait': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+                'webhook': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>'
+            };
+            const flowIcons = {
+                'start': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12l4-4m0 0l4 4m-4-4v8"/></svg>',
+                'end': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5"/></svg>'
+            };
+
+            if (nodeType === 'stage') {
+                return stageIcons[actionType] || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>';
+            } else if (nodeType === 'flow') {
+                return flowIcons[actionType] || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>';
+            } else {
+                return actionIcons[actionType] || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>';
+            }
+        },
+
+        getDefaultNodeName(nodeType, actionType) {
+            const label = this.getActionTypeLabel(nodeType, actionType);
+            return `${label} ${this.nodeIdCounter}`;
+        },
+
+        getActionTypeLabel(nodeType, actionType) {
+            const stageLabels = {
+                'APPROVE': 'Approve',
+                'COORD': 'Coordinate',
+                'CONCUR': 'Concur'
+            };
+            const actionLabels = {
+                'send_alert': 'Send Alert',
+                'send_email': 'Send Email',
+                'complete': 'Complete',
+                'reject': 'Reject',
+                'wait': 'Wait',
+                'webhook': 'Webhook'
+            };
+            const flowLabels = {
+                'start': 'Workflow Entry',
+                'end': 'Workflow Exit'
+            };
+
+            if (nodeType === 'stage') {
+                return stageLabels[actionType] || actionType;
+            } else if (nodeType === 'flow') {
+                return flowLabels[actionType] || actionType;
+            } else {
+                return actionLabels[actionType] || actionType;
+            }
+        },
+
+        onCanvasRightClick(event) {
+            // Check if we clicked on a node
+            const nodeElement = event.target.closest('.drawflow-node');
+            if (nodeElement) {
+                const nodeId = nodeElement.id.replace('node-', '');
+                const data = this.editor.getNodeFromId(nodeId);
+                const ourNodeId = data.data.nodeId;
+
+                // Calculate position with boundary detection to keep menu on screen
+                const menuWidth = 160;
+                const menuHeight = 180;
+                const x = Math.min(event.clientX, window.innerWidth - menuWidth - 10);
+                const y = Math.min(event.clientY, window.innerHeight - menuHeight - 10);
+
+                this.contextMenu = {
+                    show: true,
+                    x: Math.max(10, x),
+                    y: Math.max(10, y),
+                    nodeId: ourNodeId,
+                    drawflowId: nodeId
+                };
+            } else {
+                this.contextMenu.show = false;
+            }
+        },
+
+        renameNode(nodeId) {
+            this.contextMenu.show = false;
+            // Ensure nodeId is a number for consistent lookup
+            const numericId = typeof nodeId === 'string' ? parseInt(nodeId, 10) : nodeId;
+            const data = this.nodeData[numericId];
+            if (!data) {
+                this.showToast('Node data not found', 'error');
+                return;
+            }
+
+            this.renameModal = {
+                show: true,
+                nodeId: numericId,
+                name: data.name
+            };
+
+            // Focus the input after modal opens
+            this.$nextTick(() => {
+                this.$refs.renameInput?.focus();
+                this.$refs.renameInput?.select();
+            });
+        },
+
+        saveRename() {
+            const nodeId = this.renameModal.nodeId;
+            const newName = this.renameModal.name.trim();
+
+            if (newName && this.nodeData[nodeId]) {
+                this.nodeData[nodeId].name = newName;
+                this.updateNodeVisual(nodeId);
+                this.saveState();
+            }
+
+            this.renameModal.show = false;
+        },
+
+        openWorkflowRename() {
+            this.workflowRenameModal = {
+                show: true,
+                name: this.workflowName
+            };
+            this.$nextTick(() => {
+                this.$refs.workflowNameInput?.focus();
+                this.$refs.workflowNameInput?.select();
+            });
+        },
+
+        async saveWorkflowRename() {
+            const newName = this.workflowRenameModal.name.trim();
+            if (!newName) {
+                this.showToast('Workflow name cannot be empty', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('{% url "packages:workflow_save" workflow.pk %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        name: newName,
+                        rename_only: true
+                    })
+                });
+
+                const result = await response.json();
+                if (result.status === 'success') {
+                    this.workflowName = newName;
+                    this.workflowRenameModal.show = false;
+                    this.showToast('Workflow renamed', 'success');
+                    // Update the page title
+                    document.title = newName + ' - Workflow Builder - {{ brand_name|default:"Papertrail" }}';
+                } else {
+                    this.showToast('Error: ' + result.message, 'error');
+                }
+            } catch (error) {
+                this.showToast('Error renaming workflow', 'error');
+                console.error('Rename error:', error);
+            }
+        },
+
+        editNode(nodeId) {
+            this.contextMenu.show = false;
+            const numericId = typeof nodeId === 'string' ? parseInt(nodeId, 10) : nodeId;
+            const data = this.nodeData[numericId];
+            if (!data) {
+                this.showToast('Node data not found', 'error');
+                return;
+            }
+
+            // For flow nodes, just use rename
+            if (data.node_type === 'flow') {
+                this.renameNode(numericId);
+                return;
+            }
+
+            let title = 'Edit Node';
+            if (data.node_type === 'stage') {
+                title = 'Edit Stage Node';
+            } else if (data.node_type === 'action') {
+                title = 'Edit Action Node';
+            }
+
+            this.editModal = {
+                show: true,
+                title: title,
+                nodeId: numericId,
+                nodeType: data.node_type,
+                data: {
+                    ...data,
+                    action_config_str: JSON.stringify(data.action_config || {}, null, 2)
+                }
+            };
+        },
+
+        saveNodeEdit() {
+            const nodeId = this.editModal.nodeId;
+            const data = this.editModal.data;
+
+            // Parse action config if present
+            if (data.action_config_str) {
+                try {
+                    data.action_config = JSON.parse(data.action_config_str);
+                } catch (e) {
+                    this.showToast('Invalid JSON in configuration', 'error');
+                    return;
+                }
+            }
+
+            // Update stored data
+            this.nodeData[nodeId] = {
+                ...this.nodeData[nodeId],
+                name: data.name,
+                action_type: data.action_type,
+                multi_office_rule: data.multi_office_rule || 'any',
+                is_optional: data.is_optional,
+                timeout_days: data.timeout_days,
+                execution_mode: data.execution_mode,
+                action_config: data.action_config
+            };
+
+            // Update the visual node
+            this.updateNodeVisual(nodeId);
+            this.saveState();
+
+            this.editModal.show = false;
+        },
+
+        updateNodeVisual(nodeId) {
+            const numericId = typeof nodeId === 'string' ? parseInt(nodeId, 10) : nodeId;
+            const data = this.nodeData[numericId];
+            if (!data) return;
+            // Find the Drawflow node that contains this nodeId
+            const nodes = this.editor.export().drawflow.Home.data;
+            for (const [drawflowId, nodeData] of Object.entries(nodes)) {
+                if (nodeData.data.nodeId === numericId) {
+                    const html = this.createNodeHTML(numericId, data.node_type, data.name, data.action_type);
+                    this.editor.updateNodeDataFromId(drawflowId, { nodeId: numericId });
+                    // Update the HTML content
+                    const nodeElement = document.querySelector(`#node-${drawflowId} .drawflow_content_node`);
+                    if (nodeElement) {
+                        nodeElement.innerHTML = html;
+                    }
+                    break;
+                }
+            }
+        },
+
+        duplicateNode(nodeId) {
+            this.contextMenu.show = false;
+            const numericId = typeof nodeId === 'string' ? parseInt(nodeId, 10) : nodeId;
+            const data = this.nodeData[numericId];
+            if (!data) return;
+
+            // Prevent duplicating start/end nodes
+            if (data.node_type === 'flow') {
+                this.showToast('Start and End nodes cannot be duplicated', 'error');
+                return;
+            }
+
+            // Find position of original node
+            const nodes = this.editor.export().drawflow.Home.data;
+            let x = 100, y = 100;
+            for (const [drawflowId, nodeData] of Object.entries(nodes)) {
+                if (nodeData.data.nodeId === numericId) {
+                    x = nodeData.pos_x + 50;
+                    y = nodeData.pos_y + 50;
+                    break;
+                }
+            }
+
+            // Create new node
+            const newNodeId = this.addNode(data.node_type, data.action_type, x, y);
+
+            // Copy data
+            this.nodeData[newNodeId] = {
+                ...data,
+                name: data.name + ' (copy)'
+            };
+            this.updateNodeVisual(newNodeId);
+        },
+
+        deleteNode(nodeId) {
+            this.contextMenu.show = false;
+            const numericId = typeof nodeId === 'string' ? parseInt(nodeId, 10) : nodeId;
+            this.confirmModal = {
+                show: true,
+                nodeId: numericId
+            };
+        },
+
+        deleteFromEditModal() {
+            const nodeId = this.editModal.nodeId;
+            this.editModal.show = false;
+            this.confirmModal = {
+                show: true,
+                nodeId: nodeId
+            };
+        },
+
+        deleteFromRenameModal() {
+            const nodeId = this.renameModal.nodeId;
+            this.renameModal.show = false;
+            this.confirmModal = {
+                show: true,
+                nodeId: nodeId
+            };
+        },
+
+        confirmDelete() {
+            // Ensure nodeId is numeric for consistent comparison
+            const nodeId = typeof this.confirmModal.nodeId === 'string'
+                ? parseInt(this.confirmModal.nodeId, 10)
+                : this.confirmModal.nodeId;
+            this.confirmModal.show = false;
+
+            // Get node data before deletion to check type
+            const deletedNodeData = this.nodeData[nodeId];
+
+            // Find and remove the Drawflow node
+            // Use == for comparison to handle string/number mismatch from loaded workflows
+            const nodes = this.editor.export().drawflow.Home.data;
+            for (const [drawflowId, nodeData] of Object.entries(nodes)) {
+                const storedNodeId = nodeData.data?.nodeId;
+                if (storedNodeId !== undefined && parseInt(storedNodeId, 10) === nodeId) {
+                    this.editor.removeNodeId(`node-${drawflowId}`);
+                    break;
+                }
+            }
+
+            // Clear start/end tracking if applicable
+            if (deletedNodeData && deletedNodeData.node_type === 'flow') {
+                if (deletedNodeData.action_type === 'start') this.hasStartNode = false;
+                if (deletedNodeData.action_type === 'end') this.hasEndNode = false;
+            }
+
+            delete this.nodeData[nodeId];
+            this.saveState();
+            this.showToast('Node deleted', 'info');
+        },
+
+        async saveWorkflow() {
+            // Validate workflow has required start and end nodes
+            if (!this.hasStartNode) {
+                this.showToast('Workflow must have a Start node', 'error');
+                return;
+            }
+            if (!this.hasEndNode) {
+                this.showToast('Workflow must have an End node', 'error');
+                return;
+            }
+
+            this.saving = true;
+
+            try {
+                const exportData = this.editor.export();
+                const nodes = [];
+                const connections = [];
+
+                // Extract nodes
+                const drawflowNodes = exportData.drawflow.Home.data;
+                for (const [drawflowId, nodeData] of Object.entries(drawflowNodes)) {
+                    const ourNodeId = nodeData.data.nodeId;
+                    const ourData = this.nodeData[ourNodeId] || {};
+
+                    nodes.push({
+                        drawflow_id: drawflowId,
+                        node_id: `node_${ourNodeId}`,
+                        node_type: ourData.node_type || 'stage',
+                        name: ourData.name || 'Unnamed',
+                        action_type: ourData.action_type,
+                        multi_office_rule: ourData.multi_office_rule || 'any',
+                        is_optional: ourData.is_optional || false,
+                        timeout_days: ourData.timeout_days,
+                        execution_mode: ourData.execution_mode,
+                        action_config: ourData.action_config || {},
+                        position_x: Math.round(nodeData.pos_x),
+                        position_y: Math.round(nodeData.pos_y),
+                        config: {}
+                    });
+
+                    // Extract connections from this node
+                    if (nodeData.outputs) {
+                        for (const [outputKey, outputData] of Object.entries(nodeData.outputs)) {
+                            if (outputData.connections) {
+                                for (const conn of outputData.connections) {
+                                    connections.push({
+                                        from_node: `node_${ourNodeId}`,
+                                        to_node: `node_${drawflowNodes[conn.node].data.nodeId}`,
+                                        connection_type: 'default'
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                const response = await fetch('{% url "packages:workflow_save" workflow.pk %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        canvas_data: exportData,
+                        nodes: nodes,
+                        connections: connections
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    this.lastSaved = new Date().toLocaleTimeString();
+                    setTimeout(() => { this.lastSaved = null; }, 3000);
+                } else {
+                    this.showToast('Error saving: ' + result.message, 'error');
+                }
+            } catch (error) {
+                console.error('Save error:', error);
+                this.showToast('Error saving workflow', 'error');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        // Toast notification system
+        showToast(message, type = 'info') {
+            const toast = { message, type };
+            this.toasts.push(toast);
+            setTimeout(() => {
+                const index = this.toasts.indexOf(toast);
+                if (index > -1) this.toasts.splice(index, 1);
+            }, 3000);
+        },
+
+        // Zoom controls
+        zoomIn() {
+            this.zoomLevel = Math.min(2, this.zoomLevel + 0.1);
+            this.editor.zoom = this.zoomLevel;
+            this.editor.zoom_refresh();
+            this.$nextTick(() => this.updateMinimap());
+        },
+
+        zoomOut() {
+            this.zoomLevel = Math.max(0.25, this.zoomLevel - 0.1);
+            this.editor.zoom = this.zoomLevel;
+            this.editor.zoom_refresh();
+            this.$nextTick(() => this.updateMinimap());
+        },
+
+        zoomReset() {
+            this.zoomLevel = 1;
+            this.editor.zoom = 1;
+            this.editor.zoom_refresh();
+            this.$nextTick(() => this.updateMinimap());
+        },
+
+        // Undo/Redo
+        saveState() {
+            // Trim future history if we're not at the end
+            if (this.historyIndex < this.history.length - 1) {
+                this.history = this.history.slice(0, this.historyIndex + 1);
+            }
+
+            // Save current state
+            const state = {
+                drawflow: JSON.stringify(this.editor.export()),
+                nodeData: JSON.stringify(this.nodeData)
+            };
+            this.history.push(state);
+
+            // Limit history size
+            if (this.history.length > this.maxHistory) {
+                this.history.shift();
+            }
+
+            this.historyIndex = this.history.length - 1;
+        },
+
+        undo() {
+            if (this.historyIndex > 0) {
+                this.historyIndex--;
+                this.restoreState(this.history[this.historyIndex]);
+                this.showToast('Undo', 'info');
+            }
+        },
+
+        redo() {
+            if (this.historyIndex < this.history.length - 1) {
+                this.historyIndex++;
+                this.restoreState(this.history[this.historyIndex]);
+                this.showToast('Redo', 'info');
+            }
+        },
+
+        restoreState(state) {
+            this.editor.clear();
+            this.editor.import(JSON.parse(state.drawflow));
+            this.nodeData = JSON.parse(state.nodeData);
+            this.updateMinimap();
+        },
+
+        updateMinimap() {
+            if (!this.showMinimap) return;
+
+            const drawflowData = this.editor.export().drawflow?.Home?.data || {};
+            const nodes = Object.entries(drawflowData);
+
+            if (nodes.length === 0) {
+                this.minimapNodes = [];
+                return;
+            }
+
+            // Calculate bounds
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            for (const [id, node] of nodes) {
+                minX = Math.min(minX, node.pos_x);
+                maxX = Math.max(maxX, node.pos_x + 160);
+                minY = Math.min(minY, node.pos_y);
+                maxY = Math.max(maxY, node.pos_y + 80);
+            }
+
+            // Add padding
+            const padding = 50;
+            minX -= padding; minY -= padding;
+            maxX += padding; maxY += padding;
+
+            const worldWidth = maxX - minX;
+            const worldHeight = maxY - minY;
+
+            // Mini-map dimensions (content area: 150x80 approx after header)
+            const mapWidth = 142;
+            const mapHeight = 76;
+            const scale = Math.min(mapWidth / worldWidth, mapHeight / worldHeight);
+
+            // Convert nodes to minimap coordinates
+            this.minimapNodes = nodes.map(([id, node]) => {
+                const nodeData = this.nodeData[node.data?.nodeId] || {};
+                let nodeClass = nodeData.node_type || 'stage';
+                if (nodeData.node_type === 'flow') {
+                    nodeClass = nodeData.action_type === 'start' ? 'flow-start' : 'flow-end';
+                }
+                return {
+                    id: id,
+                    x: (node.pos_x - minX) * scale + 4,
+                    y: (node.pos_y - minY) * scale + 4,
+                    w: Math.max(4, 160 * scale),
+                    h: Math.max(3, 60 * scale),
+                    class: nodeClass
+                };
+            });
+
+            // Update viewport indicator
+            const container = document.getElementById('drawflow');
+            if (container) {
+                const viewX = (-this.editor.canvas_x / this.editor.zoom - minX) * scale + 4;
+                const viewY = (-this.editor.canvas_y / this.editor.zoom - minY) * scale + 4;
+                const viewW = (container.offsetWidth / this.editor.zoom) * scale;
+                const viewH = (container.offsetHeight / this.editor.zoom) * scale;
+
+                this.minimapViewport = {
+                    left: Math.max(0, viewX) + 'px',
+                    top: Math.max(0, viewY) + 'px',
+                    width: Math.min(mapWidth - viewX, viewW) + 'px',
+                    height: Math.min(mapHeight - viewY, viewH) + 'px'
+                };
+            }
+        },
+
+        exportWorkflow() {
+            // Create clean export without HTML content
+            const nodes = [];
+            const connections = [];
+            const drawflowData = this.editor.export().drawflow.Home.data;
+
+            for (const [drawflowId, nodeData] of Object.entries(drawflowData)) {
+                const ourNodeId = nodeData.data?.nodeId;
+                const ourData = this.nodeData[ourNodeId] || {};
+
+                nodes.push({
+                    id: `node_${ourNodeId}`,
+                    type: ourData.node_type || 'stage',
+                    name: ourData.name || 'Unnamed',
+                    action_type: ourData.action_type,
+                    is_optional: ourData.is_optional || false,
+                    timeout_days: ourData.timeout_days,
+                    execution_mode: ourData.execution_mode,
+                    position: {
+                        x: Math.round(nodeData.pos_x),
+                        y: Math.round(nodeData.pos_y)
+                    }
+                });
+
+                // Extract connections
+                if (nodeData.outputs) {
+                    for (const [outputKey, outputData] of Object.entries(nodeData.outputs)) {
+                        if (outputData.connections) {
+                            for (const conn of outputData.connections) {
+                                const targetNodeId = drawflowData[conn.node]?.data?.nodeId;
+                                if (targetNodeId) {
+                                    connections.push({
+                                        from: `node_${ourNodeId}`,
+                                        from_output: outputKey,
+                                        to: `node_${targetNodeId}`,
+                                        to_input: conn.output
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            const cleanExport = {
+                version: '1.0',
+                exported_at: new Date().toISOString(),
+                nodes: nodes,
+                connections: connections
+            };
+
+            const json = JSON.stringify(cleanExport, null, 2);
+
+            navigator.clipboard.writeText(json).then(() => {
+                this.showToast('Workflow exported to clipboard!', 'success');
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                // Fallback: show in a textarea
+                const textarea = document.createElement('textarea');
+                textarea.value = json;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                this.showToast('Workflow copied to clipboard!', 'success');
+            });
+        },
+
+        async loadWorkflow() {
+            try {
+                const response = await fetch('{% url "packages:workflow_load" workflow.pk %}');
+                const data = await response.json();
+
+                // Reset start/end tracking before loading
+                this.hasStartNode = false;
+                this.hasEndNode = false;
+
+                // If we have canvas_data from Drawflow, import it directly
+                if (data.canvas_data && Object.keys(data.canvas_data).length > 0) {
+                    this.editor.import(data.canvas_data);
+
+                    // Rebuild our nodeData from the loaded nodes
+                    const drawflowNodes = data.canvas_data.drawflow?.Home?.data || {};
+                    for (const [drawflowId, nodeData] of Object.entries(drawflowNodes)) {
+                        const ourNodeId = nodeData.data?.nodeId;
+                        if (ourNodeId) {
+                            // Find matching node data from API
+                            const nodeInfo = data.nodes?.find(n => n.node_id === `node_${ourNodeId}`);
+                            if (nodeInfo) {
+                                this.nodeData[ourNodeId] = {
+                                    node_type: nodeInfo.node_type,
+                                    action_type: nodeInfo.action_type,
+                                    name: nodeInfo.name,
+                                    is_optional: nodeInfo.is_optional,
+                                    timeout_days: nodeInfo.timeout_days,
+                                    execution_mode: nodeInfo.execution_mode,
+                                    action_config: nodeInfo.action_config || {}
+                                };
+                            } else {
+                                // Fallback: infer node data from Drawflow class for flow nodes
+                                if (nodeData.class === 'flow-start') {
+                                    this.nodeData[ourNodeId] = {
+                                        node_type: 'flow',
+                                        action_type: 'start',
+                                        name: 'Workflow Entry',
+                                        is_optional: false,
+                                        timeout_days: null,
+                                        execution_mode: 'inline',
+                                        action_config: {}
+                                    };
+                                } else if (nodeData.class === 'flow-end') {
+                                    this.nodeData[ourNodeId] = {
+                                        node_type: 'flow',
+                                        action_type: 'end',
+                                        name: 'Workflow Exit',
+                                        is_optional: false,
+                                        timeout_days: null,
+                                        execution_mode: 'inline',
+                                        action_config: {}
+                                    };
+                                }
+                            }
+                            // Update nodeIdCounter
+                            if (ourNodeId >= this.nodeIdCounter) {
+                                this.nodeIdCounter = ourNodeId + 1;
+                            }
+                        }
+
+                        // Detect start/end from Drawflow node class (fallback)
+                        if (nodeData.class === 'flow-start') this.hasStartNode = true;
+                        if (nodeData.class === 'flow-end') this.hasEndNode = true;
+
+                        // Ensure stage nodes have 2 outputs (Yes/No)
+                        if (nodeData.class === 'stage') {
+                            const outputCount = Object.keys(nodeData.outputs || {}).length;
+                            if (outputCount < 2) {
+                                // Add missing output_2 for No path
+                                if (!nodeData.outputs) nodeData.outputs = {};
+                                if (!nodeData.outputs.output_1) nodeData.outputs.output_1 = { connections: [] };
+                                if (!nodeData.outputs.output_2) nodeData.outputs.output_2 = { connections: [] };
+                                // Update the node in the editor
+                                this.editor.drawflow.drawflow.Home.data[drawflowId].outputs = nodeData.outputs;
+                                // Re-render the node to show both outputs
+                                const nodeEl = document.querySelector(`#node-${drawflowId}`);
+                                if (nodeEl) {
+                                    const outputsEl = nodeEl.querySelector('.outputs');
+                                    if (outputsEl && outputsEl.children.length < 2) {
+                                        const output2 = document.createElement('div');
+                                        output2.className = 'output output_2';
+                                        outputsEl.appendChild(output2);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Also scan nodeData for flags (in case class detection missed any)
+                    for (const nodeEntry of Object.values(this.nodeData)) {
+                        if (nodeEntry.node_type === 'flow') {
+                            if (nodeEntry.action_type === 'start') this.hasStartNode = true;
+                            if (nodeEntry.action_type === 'end') this.hasEndNode = true;
+                        }
+                    }
+                } else if (data.nodes && data.nodes.length > 0) {
+                    // Recreate nodes from database if no canvas_data
+                    for (const nodeInfo of data.nodes) {
+                        const nodeId = parseInt(nodeInfo.node_id.replace('node_', ''));
+                        this.nodeIdCounter = Math.max(this.nodeIdCounter, nodeId + 1);
+
+                        this.nodeData[nodeId] = {
+                            node_type: nodeInfo.node_type,
+                            action_type: nodeInfo.action_type,
+                            name: nodeInfo.name,
+                            is_optional: nodeInfo.is_optional,
+                            timeout_days: nodeInfo.timeout_days,
+                            execution_mode: nodeInfo.execution_mode,
+                            action_config: nodeInfo.action_config || {}
+                        };
+
+                        const html = this.createNodeHTML(nodeId, nodeInfo.node_type, nodeInfo.name, nodeInfo.action_type);
+                        let numInputs = 1;
+                        let numOutputs = 1;
+
+                        if (nodeInfo.node_type === 'stage') {
+                            numOutputs = 2;
+                        } else if (nodeInfo.node_type === 'flow') {
+                            if (nodeInfo.action_type === 'start') {
+                                numInputs = 0;
+                            } else if (nodeInfo.action_type === 'end') {
+                                numOutputs = 0;
+                            }
+                        } else if (nodeInfo.node_type === 'action' && nodeInfo.action_type === 'complete') {
+                            numOutputs = 0;
+                        }
+
+                        // Determine CSS class
+                        let nodeClass = nodeInfo.node_type;
+                        if (nodeInfo.node_type === 'flow') {
+                            nodeClass = nodeInfo.action_type === 'start' ? 'flow-start' : 'flow-end';
+                        }
+
+                        this.editor.addNode(
+                            `node_${nodeId}`,
+                            numInputs,
+                            numOutputs,
+                            nodeInfo.position_x,
+                            nodeInfo.position_y,
+                            nodeClass,
+                            { nodeId: nodeId },
+                            html
+                        );
+                    }
+
+                    // Recreate connections
+                    // Note: This requires mapping node_ids to Drawflow internal IDs
+                    // For simplicity, we save/load via canvas_data which handles this
+
+                    // Scan all nodeData to set start/end flags
+                    for (const nodeEntry of Object.values(this.nodeData)) {
+                        if (nodeEntry.node_type === 'flow') {
+                            if (nodeEntry.action_type === 'start') this.hasStartNode = true;
+                            if (nodeEntry.action_type === 'end') this.hasEndNode = true;
+                        }
+                    }
+                }
+
+                // Save initial state for undo and update minimap
+                this.$nextTick(() => {
+                    this.saveState();
+                    this.updateMinimap();
+                });
+            } catch (error) {
+                console.error('Load error:', error);
+                this.showToast('Failed to load workflow. Please refresh the page.', 'error');
+            }
+        }
+    };
+}
+</script>
+{% endblock %}

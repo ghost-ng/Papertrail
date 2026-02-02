@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}Notifications - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto" x-data="notificationsPage()">
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Notifications</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                <span x-text="unreadCount"></span> unread notification<span x-show="unreadCount !== 1">s</span>
+            </p>
+        </div>
+        <button
+            @click="markAllRead()"
+            x-show="unreadCount > 0"
+            class="px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+        >
+            Mark all as read
+        </button>
+    </div>
+
+    {% if notifications %}
+    <div class="space-y-2">
+        {% for notification in notifications %}
+        <div
+            id="notification-{{ notification.pk }}"
+            class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 {% if not notification.is_read %}border-l-4 border-blue-600{% endif %}"
+        >
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <div class="flex items-center space-x-2">
+                        <!-- Notification Type Icon -->
+                        {% if notification.notification_type == "comment_added" or notification.notification_type == "comment_mention" %}
+                        <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                        </svg>
+                        {% elif notification.notification_type == "package_arrived" %}
+                        <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+                        </svg>
+                        {% elif notification.notification_type == "action_required" %}
+                        <svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                        {% elif notification.notification_type == "signature_required" %}
+                        <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                        </svg>
+                        {% elif notification.notification_type == "integrity_violation" %}
+                        <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        {% else %}
+                        <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                        </svg>
+                        {% endif %}
+
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-white">{{ notification.title }}</h3>
+                    </div>
+                    <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ notification.message }}</p>
+                    <div class="mt-2 flex items-center space-x-4">
+                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ notification.created_at|timesince }} ago</span>
+                        {% if notification.link %}
+                        <a href="{{ notification.link }}" class="text-xs text-blue-600 dark:text-blue-400 hover:underline">View</a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if not notification.is_read %}
+                <button
+                    @click="markRead({{ notification.pk }})"
+                    class="ml-4 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    title="Mark as read"
+                >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+        </svg>
+        <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No notifications</h3>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">You're all caught up!</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function notificationsPage() {
+    return {
+        unreadCount: {{ unread_count }},
+
+        async markRead(notificationId) {
+            try {
+                const response = await fetch(`/collaboration/notifications/${notificationId}/read/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '{{ csrf_token }}',
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (response.ok) {
+                    const el = document.getElementById(`notification-${notificationId}`);
+                    if (el) {
+                        el.classList.remove('border-l-4', 'border-blue-600');
+                    }
+                    this.unreadCount = Math.max(0, this.unreadCount - 1);
+                }
+            } catch (error) {
+                console.error('Failed to mark notification as read:', error);
+            }
+        },
+
+        async markAllRead() {
+            try {
+                const response = await fetch('/collaboration/notifications/mark-all-read/', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '{{ csrf_token }}',
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (response.ok) {
+                    document.querySelectorAll('[id^="notification-"]').forEach(el => {
+                        el.classList.remove('border-l-4', 'border-blue-600');
+                    });
+                    this.unreadCount = 0;
+                }
+            } catch (error) {
+                console.error('Failed to mark all notifications as read:', error);
+            }
+        }
+    }
+}
+</script>
+<!-- Hidden CSRF token for JavaScript -->
+<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+{% endblock %}

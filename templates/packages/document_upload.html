@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Document - {{ brand_name|default:"Papertrail" }}{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto">
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+        Upload Document to Tab {{ tab.identifier }}
+    </h1>
+
+    <div class="card">
+        <div class="mb-4 text-sm text-gray-600 dark:text-gray-400">
+            <p><strong>Package:</strong> {{ package.reference_number }}</p>
+            <p><strong>Tab:</strong> {{ tab.identifier }} - {{ tab.display_name }}</p>
+            {% if tab.current_document %}
+            <p><strong>Current version:</strong> v{{ tab.current_document.version }}</p>
+            {% endif %}
+        </div>
+
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            <div class="space-y-4">
+                <div>
+                    <label for="id_file" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">File</label>
+                    {{ form.file }}
+                    {% if form.file.errors %}
+                    <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ form.file.errors.0 }}</p>
+                    {% endif %}
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Allowed: PDF, DOCX, XLSX, PNG, JPG, GIF. Max size: 50MB.
+                    </p>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end space-x-3">
+                <a href="{% url 'packages:package_detail' package.pk %}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Upload</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

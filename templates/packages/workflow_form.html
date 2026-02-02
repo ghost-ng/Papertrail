@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}{% if form.instance.pk %}Edit{% else %}Create{% endif %} Workflow - {{ brand_name|default:"Papertrail" }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="mb-6">
+        <a href="{% url 'packages:workflow_list' %}" class="text-blue-600 dark:text-blue-400 hover:underline text-sm">
+            &larr; Back to Workflows
+        </a>
+    </div>
+
+    <div class="card">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+            {% if form.instance.pk %}Edit Workflow{% else %}Create Workflow{% endif %}
+        </h1>
+
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+
+            <div>
+                <label for="id_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Workflow Name <span class="text-red-500">*</span>
+                </label>
+                {{ form.name }}
+                {% if form.name.errors %}
+                <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ form.name.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div>
+                <label for="id_description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Description
+                </label>
+                {{ form.description }}
+                {% if form.description.errors %}
+                <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ form.description.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div>
+                <label for="id_organization" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Organization
+                </label>
+                {{ form.organization }}
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Leave empty to make this workflow available to all organizations.
+                </p>
+                {% if form.organization.errors %}
+                <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ form.organization.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="flex items-center">
+                {{ form.is_active }}
+                <label for="id_is_active" class="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                    Active (can be assigned to packages)
+                </label>
+            </div>
+
+            <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <a href="{% url 'packages:workflow_list' %}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    {% if form.instance.pk %}Save Changes{% else %}Create & Open Builder{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

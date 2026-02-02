@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ office }} - {{ brand_name|default:"Papertrail" }}{% endblock %}
+{% block content %}
+<div class="mb-8">
+    <nav class="text-sm text-gray-500 dark:text-gray-400 mb-2">
+        <a href="{% url 'organizations:organization_list' %}" class="hover:text-gray-700 dark:hover:text-gray-300">Organizations</a> &rarr;
+        <a href="{% url 'organizations:organization_detail' pk=office.organization.pk %}" class="hover:text-gray-700 dark:hover:text-gray-300">{{ office.organization.code }}</a> &rarr;
+        <span class="text-gray-900 dark:text-white">{{ office.code }}</span>
+    </nav>
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ office.display_name }}</h1>
+    {% if office.description %}<p class="text-gray-600 dark:text-gray-400">{{ office.description }}</p>{% endif %}
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2">
+        <div class="card">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Office Information</h2>
+            <dl class="space-y-2">
+                <div class="flex"><dt class="w-32 text-gray-500 dark:text-gray-400">Code:</dt><dd class="text-gray-900 dark:text-white">{{ office.code }}</dd></div>
+                <div class="flex"><dt class="w-32 text-gray-500 dark:text-gray-400">Organization:</dt><dd class="text-gray-900 dark:text-white">{{ office.organization.name }}</dd></div>
+            </dl>
+        </div>
+    </div>
+
+    <div>
+        <div class="card">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Your Membership</h2>
+            {% if user_membership %}
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-600 dark:text-gray-400">Role:</span>
+                    <span class="px-2.5 py-0.5 rounded text-xs font-medium
+                        {% if user_membership.role == 'admin' %}
+                        bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200
+                        {% else %}
+                        bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-200
+                        {% endif %}
+                    ">{{ user_membership.get_role_display }}</span>
+                </div>
+                <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">Joined {{ user_membership.joined_at|date:"M d, Y" }}</p>
+            {% else %}
+                <p class="text-gray-500 dark:text-gray-400 text-sm">You are not a member of this office.</p>
+                <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">Contact an office admin to be added as a member.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

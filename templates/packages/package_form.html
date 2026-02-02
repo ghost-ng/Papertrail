@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit{% else %}Create{% endif %} Package - {{ brand_name|default:"Papertrail" }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+        {% if object %}Edit Package{% else %}Create Package{% endif %}
+    </h1>
+
+    <div class="card">
+        <form method="post" x-data="{ orgId: '' }">
+            {% csrf_token %}
+
+            <div class="space-y-4">
+                <div>
+                    <label for="id_title" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
+                    {{ form.title }}
+                    {% if form.title.errors %}
+                    <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ form.title.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                {% if not object %}
+                <div>
+                    <label for="organization" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Organization</label>
+                    <select name="organization" id="organization" class="input" x-model="orgId" required>
+                        <option value="">Select organization...</option>
+                        {% for membership in organizations %}
+                        <option value="{{ membership.organization.pk }}">{{ membership.organization.code }} - {{ membership.organization.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label for="originating_office" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Originating Office</label>
+                    <select name="originating_office" id="originating_office" class="input" required>
+                        <option value="">Select office...</option>
+                        {% for membership in organizations %}
+                        {% for office in membership.organization.offices.all %}
+                        <option value="{{ office.pk }}" x-show="orgId == '{{ membership.organization.pk }}'">{{ office.code }} - {{ office.name }}</option>
+                        {% endfor %}
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+
+                <div>
+                    <label for="id_priority" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Priority</label>
+                    {{ form.priority }}
+                    {% if form.priority.errors %}
+                    <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ form.priority.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label for="id_workflow_template" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Workflow Template</label>
+                    {{ form.workflow_template }}
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional. Select a workflow to route this package.</p>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end space-x-3">
+                <a href="{% if object %}{% url 'packages:package_detail' object.pk %}{% else %}{% url 'packages:package_list' %}{% endif %}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    {% if object %}Save Changes{% else %}Create Package{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

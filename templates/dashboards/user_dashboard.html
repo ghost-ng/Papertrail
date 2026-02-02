@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - {{ brand_name|default:"Papertrail" }}{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+    <p class="text-gray-600 dark:text-gray-400">Welcome back, {{ user.full_name|default:user.email }}</p>
+</div>
+
+<!-- Stats Cards -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-600 dark:text-gray-400">Action Required</p>
+                <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ action_required_count }}</p>
+            </div>
+            <div class="w-12 h-12 bg-red-100 dark:bg-red-900 rounded-lg flex items-center justify-center">
+                <svg class="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-600 dark:text-gray-400">My Packages</p>
+                <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ my_packages_count }}</p>
+            </div>
+            <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
+                <svg class="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                </svg>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-600 dark:text-gray-400">Unread Notifications</p>
+                <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ unread_count }}</p>
+            </div>
+            <div class="w-12 h-12 bg-yellow-100 dark:bg-yellow-900 rounded-lg flex items-center justify-center">
+                <svg class="w-6 h-6 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                </svg>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-600 dark:text-gray-400">My Offices</p>
+                <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ memberships|length }}</p>
+            </div>
+            <div class="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center">
+                <svg class="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                </svg>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Main Column (2/3) -->
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Action Required Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <svg class="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                    Action Required
+                    {% if action_required_count > 0 %}
+                    <span class="ml-2 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 text-xs font-medium px-2.5 py-0.5 rounded-full">{{ action_required_count }}</span>
+                    {% endif %}
+                </h2>
+            </div>
+            <div class="p-6">
+                {% if action_required %}
+                <div class="space-y-4">
+                    {% for item in action_required %}
+                    <div class="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <div class="flex-1">
+                            <div class="flex items-center space-x-2">
+                                <a href="{% url 'packages:package_detail' item.package.reference_number %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                                    {{ item.package.reference_number }}
+                                </a>
+                                {% if item.package.priority == 'urgent' %}
+                                <span class="bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 text-xs font-medium px-2 py-0.5 rounded">Urgent</span>
+                                {% elif item.package.priority == 'low' %}
+                                <span class="bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-200 text-xs font-medium px-2 py-0.5 rounded">Low</span>
+                                {% endif %}
+                            </div>
+                            <p class="text-gray-900 dark:text-white mt-1">{{ item.package.title }}</p>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                Stage: {{ item.stage.name }} ({{ item.stage.get_action_type_display }})
+                            </p>
+                        </div>
+                        <a href="{% url 'packages:stage_action' item.package.reference_number %}" class="ml-4 inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            Take Action
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-gray-500 dark:text-gray-400 text-sm text-center py-8">No packages require your action at this time.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- My Packages Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <svg class="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                    </svg>
+                    My Packages
+                </h2>
+                <a href="{% url 'packages:package_list' %}?originator={{ user.id }}" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">View All</a>
+            </div>
+            <div class="p-6">
+                {% if my_packages %}
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead>
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Reference</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Title</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Created</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                            {% for package in my_packages %}
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    <a href="{% url 'packages:package_detail' package.reference_number %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                                        {{ package.reference_number }}
+                                    </a>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="text-gray-900 dark:text-white">{{ package.title|truncatechars:40 }}</span>
+                                </td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    {% if package.status == 'draft' %}
+                                    <span class="bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-200 text-xs font-medium px-2.5 py-0.5 rounded">Draft</span>
+                                    {% elif package.status == 'in_routing' %}
+                                    <span class="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs font-medium px-2.5 py-0.5 rounded">In Routing</span>
+                                    {% elif package.status == 'completed' %}
+                                    <span class="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 text-xs font-medium px-2.5 py-0.5 rounded">Completed</span>
+                                    {% elif package.status == 'cancelled' %}
+                                    <span class="bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 text-xs font-medium px-2.5 py-0.5 rounded">Cancelled</span>
+                                    {% elif package.status == 'on_hold' %}
+                                    <span class="bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 text-xs font-medium px-2.5 py-0.5 rounded">On Hold</span>
+                                    {% elif package.status == 'archived' %}
+                                    <span class="bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 text-xs font-medium px-2.5 py-0.5 rounded">Archived</span>
+                                    {% else %}
+                                    <span class="bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-200 text-xs font-medium px-2.5 py-0.5 rounded">{{ package.get_status_display }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                    {{ package.created_at|date:"M d, Y" }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-gray-500 dark:text-gray-400 text-sm text-center py-8">You haven't created any packages yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar (1/3) -->
+    <div class="space-y-6">
+        <!-- Notifications Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <svg class="w-5 h-5 text-yellow-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                    </svg>
+                    Notifications
+                    {% if unread_count > 0 %}
+                    <span class="ml-2 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 text-xs font-medium px-2.5 py-0.5 rounded-full">{{ unread_count }}</span>
+                    {% endif %}
+                </h2>
+            </div>
+            <div class="p-6">
+                {% if notifications %}
+                <div class="space-y-4">
+                    {% for notification in notifications %}
+                    <div class="{% if not notification.is_read %}bg-blue-50 dark:bg-blue-900/20{% else %}bg-gray-50 dark:bg-gray-700{% endif %} p-3 rounded-lg">
+                        <div class="flex items-start">
+                            {% if not notification.is_read %}
+                            <span class="flex-shrink-0 w-2 h-2 mt-2 bg-blue-500 rounded-full mr-3"></span>
+                            {% else %}
+                            <span class="flex-shrink-0 w-2 h-2 mt-2 bg-transparent rounded-full mr-3"></span>
+                            {% endif %}
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-medium text-gray-900 dark:text-white">{{ notification.title }}</p>
+                                <p class="text-sm text-gray-500 dark:text-gray-400 truncate">{{ notification.message|truncatechars:80 }}</p>
+                                <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">{{ notification.created_at|timesince }} ago</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-gray-500 dark:text-gray-400 text-sm text-center py-4">No notifications.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- My Offices Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                    </svg>
+                    My Offices
+                </h2>
+            </div>
+            <div class="p-6">
+                {% if memberships %}
+                <div class="space-y-3">
+                    {% for membership in memberships %}
+                    <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <div>
+                            <p class="font-medium text-gray-900 dark:text-white">{{ membership.office.code }}</p>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">{{ membership.office.name }}</p>
+                            <p class="text-xs text-gray-400 dark:text-gray-500">{{ membership.office.organization.code }}</p>
+                        </div>
+                        <span class="text-xs font-medium px-2.5 py-0.5 rounded
+                            {% if membership.role == 'admin' %}
+                            bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200
+                            {% else %}
+                            bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-200
+                            {% endif %}
+                        ">
+                            {{ membership.get_role_display }}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-gray-500 dark:text-gray-400 text-sm text-center py-4">You are not a member of any offices.</p>
+                <a href="{% url 'organizations:organization_list' %}" class="block text-center text-sm text-blue-600 dark:text-blue-400 hover:underline mt-2">Browse Organizations</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

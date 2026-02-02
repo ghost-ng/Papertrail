@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+.venv/
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+media/
+tests/*
+docs/plans/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node/Tailwind
+node_modules/
+package-lock.json
+
+# Static files (generated)
+staticfiles/
+
+# Claude Code
+.claude/
+
+# Windows artifacts
+nul

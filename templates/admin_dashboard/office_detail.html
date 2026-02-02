@@ -1,0 +1,259 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block admin_content %}
+<div class="space-y-6" x-data="{ showPermissionModal: false, showSubOfficeModal: false }">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div class="flex items-center">
+            <a href="{% url 'admin_dashboard:offices' %}" class="mr-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                </svg>
+            </a>
+            <div>
+                <div class="flex items-center gap-2">
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ office }}</h1>
+                    <button @click="showPermissionModal = true" class="p-1.5 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors" title="Permission Structure Help">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </button>
+                </div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">{{ office.name }}</p>
+            </div>
+        </div>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="toggle_active">
+            <button type="submit" class="px-4 py-2 text-sm font-medium rounded-md {% if office.is_active %}bg-red-100 text-red-700 hover:bg-red-200{% else %}bg-green-100 text-green-700 hover:bg-green-200{% endif %}">
+                {% if office.is_active %}Deactivate{% else %}Activate{% endif %}
+            </button>
+        </form>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Add Member -->
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6" x-data="userSearch()">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Add Member</h2>
+            <form method="post" class="space-y-4">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="add_member">
+                <div class="relative">
+                    <input type="text" x-model="query" @input.debounce.300ms="search()" placeholder="Search user by email..."
+                           class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    <input type="hidden" name="user_id" x-model="selectedId">
+                    <div x-show="results.length > 0" class="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-48 overflow-auto">
+                        <template x-for="user in results" :key="user.id">
+                            <div @click="select(user)" class="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
+                                <span x-text="user.display" class="text-sm text-gray-900 dark:text-white"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <select name="role" class="flex-1 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md">
+                        {% for value, label in role_choices %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" :disabled="!selectedId" class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50">Add</button>
+                </div>
+            </form>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Member = workflow participation; Admin = manage office + sub-offices</p>
+        </div>
+
+        <!-- Office Info -->
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Office Information</h2>
+            <dl class="space-y-3">
+                <div class="flex justify-between">
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Organization</dt>
+                    <dd class="text-sm text-gray-900 dark:text-white">
+                        <a href="{% url 'admin_dashboard:organization_detail' pk=office.organization.pk %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">{{ office.organization.code }}</a>
+                    </dd>
+                </div>
+                {% if office.parent %}
+                <div class="flex justify-between">
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Parent Office</dt>
+                    <dd class="text-sm text-gray-900 dark:text-white">
+                        <a href="{% url 'admin_dashboard:office_detail' pk=office.parent.pk %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">{{ office.parent.code }}</a>
+                    </dd>
+                </div>
+                {% endif %}
+                <div class="flex justify-between">
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Status</dt>
+                    <dd>
+                        {% if office.is_active %}
+                        <span class="px-2 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
+                        {% else %}
+                        <span class="px-2 text-xs font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Inactive</span>
+                        {% endif %}
+                    </dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Members</dt>
+                    <dd class="text-sm text-gray-900 dark:text-white">{{ memberships.count }}</dd>
+                </div>
+                {% if sub_offices %}
+                <div class="flex justify-between">
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Sub-offices</dt>
+                    <dd class="text-sm text-gray-900 dark:text-white">{{ sub_offices.count }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+
+        <!-- Sub-offices -->
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6 lg:col-span-2">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Sub-offices{% if sub_offices %} ({{ sub_offices.count }}){% endif %}</h2>
+                <button @click="showSubOfficeModal = true" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-md">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    Add Sub-office
+                </button>
+            </div>
+            {% if sub_offices %}
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {% for sub in sub_offices %}
+                <a href="{% url 'admin_dashboard:office_detail' pk=sub.pk %}" class="block py-2 px-3 bg-gray-50 dark:bg-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-600">
+                    <span class="text-sm font-medium text-gray-900 dark:text-white">{{ sub.code }}</span>
+                    <span class="text-sm text-gray-500 dark:text-gray-400 ml-2">{{ sub.name }}</span>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-gray-500 dark:text-gray-400">No sub-offices yet. Click "Add Sub-office" to create one.</p>
+            {% endif %}
+        </div>
+
+        <!-- Members List -->
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6 lg:col-span-2">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Members</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead>
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">User</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Role</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Joined</th>
+                            <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                        {% for m in memberships %}
+                        <tr>
+                            <td class="px-4 py-3">
+                                <a href="{% url 'admin_dashboard:user_detail' pk=m.user.pk %}" class="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline">{{ m.user.email }}</a>
+                            </td>
+                            <td class="px-4 py-3">
+                                <form method="post" class="inline-flex items-center gap-2">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="update_role">
+                                    <input type="hidden" name="membership_id" value="{{ m.id }}">
+                                    <select name="role" onchange="this.form.submit()" class="text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded">
+                                        {% for value, label in role_choices %}
+                                        <option value="{{ value }}" {% if m.role == value %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </form>
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ m.joined_at|date:"M d, Y" }}</td>
+                            <td class="px-4 py-3 text-right">
+                                <form method="post" class="inline">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="remove_member">
+                                    <input type="hidden" name="membership_id" value="{{ m.id }}">
+                                    <button type="submit" class="text-red-600 dark:text-red-400 hover:text-red-800 text-sm">Remove</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No members</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Sub-office Modal -->
+    <div x-show="showSubOfficeModal" x-cloak
+         style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999;"
+         aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <!-- Backdrop -->
+        <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5);"
+             @click="showSubOfficeModal = false"></div>
+        <!-- Modal Panel -->
+        <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; padding: 1rem;">
+            <div @click.stop
+                 style="border-radius: 0.5rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); width: 100%; max-width: 32rem; position: relative;"
+                 class="bg-white dark:bg-gray-800">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="create_sub_office">
+                    <div class="px-4 pb-4 pt-5 sm:p-6">
+                        <h3 class="text-base font-semibold text-gray-900 dark:text-white" id="modal-title">Create Sub-office under {{ office.code }}</h3>
+                        <div class="mt-4 space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Code</label>
+                                <input type="text" name="code" required maxlength="20" placeholder="e.g., TEAM-A, DEPT-1"
+                                       class="mt-1 block w-full rounded-md border-0 py-1.5 text-gray-900 dark:text-white dark:bg-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm uppercase">
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Short unique identifier within {{ office.organization.code }}</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
+                                <input type="text" name="name" required maxlength="200" placeholder="e.g., Team Alpha, Department One"
+                                       class="mt-1 block w-full rounded-md border-0 py-1.5 text-gray-900 dark:text-white dark:bg-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
+                                <textarea name="description" rows="2" placeholder="Optional description..."
+                                          class="mt-1 block w-full rounded-md border-0 py-1.5 text-gray-900 dark:text-white dark:bg-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:flex sm:flex-row-reverse sm:gap-3 sm:px-6 rounded-b-lg">
+                        <button type="submit"
+                                class="inline-flex w-full justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 sm:w-24">
+                            Create
+                        </button>
+                        <button type="button" @click="showSubOfficeModal = false"
+                                class="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-600 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500 sm:mt-0 sm:w-24">
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Permission Modal Include -->
+    {% include "admin_dashboard/includes/permission_modal.html" %}
+</div>
+
+<script>
+function userSearch() {
+    return {
+        query: '',
+        results: [],
+        selectedId: null,
+        async search() {
+            if (this.query.length < 2) {
+                this.results = [];
+                return;
+            }
+            const response = await fetch(`{% url 'admin_dashboard:user_search_api' %}?q=${encodeURIComponent(this.query)}`);
+            const data = await response.json();
+            this.results = data.users;
+        },
+        select(user) {
+            this.query = user.display;
+            this.selectedId = user.id;
+            this.results = [];
+        }
+    }
+}
+</script>
+{% endblock %}

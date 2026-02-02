@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit{% else %}Add{% endif %} Tab - {{ brand_name|default:"Papertrail" }}{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto">
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+        {% if object %}Edit Tab {{ object.identifier }}{% else %}Add Tab{% endif %}
+    </h1>
+
+    <div class="card">
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="space-y-4">
+                {% if not object %}
+                <div class="bg-blue-50 dark:bg-blue-900/50 rounded-lg p-3">
+                    <p class="text-sm text-blue-800 dark:text-blue-200">
+                        This tab will be assigned an identifier automatically.
+                    </p>
+                </div>
+                {% endif %}
+
+                <div>
+                    <label for="id_display_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Display Name</label>
+                    {{ form.display_name }}
+                    {% if form.display_name.errors %}
+                    <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ form.display_name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div class="flex items-center">
+                    {{ form.is_required }}
+                    <label for="id_is_required" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Required tab</label>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end space-x-3">
+                <a href="{% url 'packages:package_detail' package.pk %}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    {% if object %}Save Changes{% else %}Add Tab{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

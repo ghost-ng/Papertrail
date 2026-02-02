@@ -1,0 +1,180 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block admin_content %}
+<div class="space-y-6" x-data="{ showCreateModal: false, selectedOrg: '', orgLocked: false, selectParent(e) { const opt = e.target.selectedOptions[0]; if (opt && opt.dataset.org) { this.selectedOrg = opt.dataset.org; this.orgLocked = true; } else { this.orgLocked = false; } } }">
+    <div class="flex justify-between items-start">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Offices</h1>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Manage offices and their members.</p>
+        </div>
+        <button @click="showCreateModal = true; selectedOrg = ''; orgLocked = false" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+            New Office
+        </button>
+    </div>
+
+    <!-- Search and Filters -->
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-4">
+        <form method="get" class="flex flex-wrap gap-4">
+            <div class="flex-1 min-w-[200px]">
+                <input type="text" name="q" value="{{ search_query }}" placeholder="Search offices..."
+                       class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+            <select name="org" class="shrink-0 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md text-sm">
+                <option value="">All Organizations</option>
+                {% for org in organizations %}
+                <option value="{{ org.id }}" {% if org_filter == org.id|stringformat:"i" %}selected{% endif %}>{{ org.code }}</option>
+                {% endfor %}
+            </select>
+            <select name="status" class="shrink-0 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md text-sm">
+                <option value="">All Status</option>
+                <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+                <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+            </select>
+            <button type="submit" class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700">Filter</button>
+            {% if search_query or org_filter or status_filter %}
+            <a href="{% url 'admin_dashboard:offices' %}" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-md">Clear</a>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- Create Office Modal -->
+    <div x-show="showCreateModal" x-cloak
+         style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999;"
+         aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <!-- Backdrop -->
+        <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5);"
+             @click="showCreateModal = false; selectedOrg = ''; orgLocked = false"></div>
+        <!-- Modal Panel -->
+        <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; padding: 1rem;">
+            <div @click.stop
+                 style="border-radius: 0.5rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); width: 100%; max-width: 32rem; position: relative;"
+                 class="bg-white dark:bg-gray-800">
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="create_office">
+                        <div class="px-4 pb-4 pt-5 sm:p-6">
+                            <h3 class="text-base font-semibold text-gray-900 dark:text-white" id="modal-title">Create Office</h3>
+                            <div class="mt-4 space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Organization</label>
+                                    <select name="organization_id" required x-model="selectedOrg" :disabled="orgLocked"
+                                            class="mt-1 block w-full rounded-md border-0 py-1.5 text-gray-900 dark:text-white shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm"
+                                            :class="orgLocked ? 'bg-gray-100 dark:bg-gray-600 cursor-not-allowed' : 'dark:bg-gray-700'">
+                                        <option value="">Select an organization...</option>
+                                        {% for org in organizations %}
+                                        <option value="{{ org.id }}">{{ org.code }} - {{ org.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <p x-show="orgLocked" class="mt-1 text-xs text-indigo-600 dark:text-indigo-400">Auto-selected from parent office</p>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Code</label>
+                                    <input type="text" name="code" required maxlength="20" placeholder="e.g., HQ, SALES"
+                                           class="mt-1 block w-full rounded-md border-0 py-1.5 text-gray-900 dark:text-white dark:bg-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm uppercase">
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Short unique identifier within the organization</p>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
+                                    <input type="text" name="name" required maxlength="200" placeholder="e.g., Headquarters, Sales Department"
+                                           class="mt-1 block w-full rounded-md border-0 py-1.5 text-gray-900 dark:text-white dark:bg-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Parent Office (Optional)</label>
+                                    <select name="parent_id" @change="selectParent($event)"
+                                            class="mt-1 block w-full rounded-md border-0 py-1.5 text-gray-900 dark:text-white dark:bg-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm">
+                                        <option value="" data-org="">No parent (root office)</option>
+                                        {% for office in all_offices %}
+                                        <option value="{{ office.id }}" data-org="{{ office.organization_id }}">{{ office.organization.code }} {{ office.code }} - {{ office.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Select a parent to create a sub-office</p>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
+                                    <textarea name="description" rows="2" placeholder="Optional description..."
+                                              class="mt-1 block w-full rounded-md border-0 py-1.5 text-gray-900 dark:text-white dark:bg-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:flex sm:flex-row-reverse sm:gap-3 sm:px-6 rounded-b-lg">
+                            <button type="submit"
+                                    class="inline-flex w-full justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 sm:w-24">
+                                Create
+                            </button>
+                            <button type="button" @click="showCreateModal = false; selectedOrg = ''; orgLocked = false"
+                                    class="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-600 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500 sm:mt-0 sm:w-24">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Offices Table -->
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead class="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Office</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Organization</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Members</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Status</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for office in offices %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td class="px-6 py-4">
+                        <div class="text-sm font-medium text-gray-900 dark:text-white">{{ office.code }}</div>
+                        <div class="text-sm text-gray-500 dark:text-gray-400">{{ office.name }}</div>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                        <a href="{% url 'admin_dashboard:organization_detail' pk=office.organization.pk %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">{{ office.organization.code }}</a>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{{ office.member_count }}</td>
+                    <td class="px-6 py-4">
+                        {% if office.is_active %}
+                        <span class="px-2 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
+                        {% else %}
+                        <span class="px-2 text-xs font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <a href="{% url 'admin_dashboard:office_detail' pk=office.pk %}" class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 text-sm font-medium">Manage</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">No offices found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+        <div class="px-6 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
+            <p class="text-sm text-gray-700 dark:text-gray-300">
+                Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }}
+            </p>
+            <nav class="inline-flex rounded-md shadow-sm -space-x-px">
+                {% if page_obj.has_previous %}
+                <a href="?{% if search_query %}q={{ search_query }}&{% endif %}{% if org_filter %}org={{ org_filter }}&{% endif %}{% if status_filter %}status={{ status_filter }}&{% endif %}page={{ page_obj.previous_page_number }}"
+                   class="px-3 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50">Prev</a>
+                {% endif %}
+                {% if page_obj.has_next %}
+                <a href="?{% if search_query %}q={{ search_query }}&{% endif %}{% if org_filter %}org={{ org_filter }}&{% endif %}{% if status_filter %}status={{ status_filter }}&{% endif %}page={{ page_obj.next_page_number }}"
+                   class="px-3 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50">Next</a>
+                {% endif %}
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

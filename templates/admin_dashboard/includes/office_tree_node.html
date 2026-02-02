@@ -1,0 +1,64 @@
+{% comment %}
+Recursive template for rendering an office and its children in the hierarchy tree.
+Expects: office_node (dict with office, admins, members, children)
+{% endcomment %}
+<div x-data="{ open: expandAll }" x-effect="open = expandAll">
+    <div class="tree-row cursor-pointer" @click="open = !open">
+        <svg class="tree-arrow" :class="{ 'rotate-90': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+        <svg class="tree-icon text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z"></path></svg>
+        <a href="{% url 'admin_dashboard:office_detail' pk=office_node.office.pk %}" class="font-medium text-green-700 dark:text-green-300 hover:underline">{{ office_node.office.code }}</a>
+        <span class="text-gray-500 dark:text-gray-400 ml-1">{{ office_node.office.name }}</span>
+        {% if office_node.children %}
+        <span class="tree-count">({{ office_node.children|length }} sub-offices)</span>
+        {% endif %}
+    </div>
+
+    <div x-show="open" x-collapse class="tree-branch">
+        <!-- Office Admins -->
+        {% if office_node.admins %}
+        <div x-data="{ open: false }">
+            <div class="tree-row cursor-pointer" @click="open = !open">
+                <svg class="tree-arrow" :class="{ 'rotate-90': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                <span class="text-green-600 dark:text-green-400">Admins</span>
+                <span class="tree-count">({{ office_node.admins.count }})</span>
+            </div>
+            <div x-show="open" x-collapse class="tree-branch">
+                {% for m in office_node.admins %}
+                <div class="tree-row tree-leaf">
+                    <svg class="tree-icon text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                    <a href="{% url 'admin_dashboard:user_detail' pk=m.user.pk %}" class="tree-link">{{ m.user.email }}</a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Office Members -->
+        {% if office_node.members %}
+        <div x-data="{ open: false }">
+            <div class="tree-row cursor-pointer" @click="open = !open">
+                <svg class="tree-arrow" :class="{ 'rotate-90': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                <span class="text-amber-600 dark:text-amber-400">Members</span>
+                <span class="tree-count">({{ office_node.members.count }})</span>
+            </div>
+            <div x-show="open" x-collapse class="tree-branch">
+                {% for m in office_node.members %}
+                <div class="tree-row tree-leaf">
+                    <svg class="tree-icon text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                    <a href="{% url 'admin_dashboard:user_detail' pk=m.user.pk %}" class="tree-link">{{ m.user.email }}</a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if not office_node.admins and not office_node.members and not office_node.children %}
+        <div class="tree-row tree-leaf text-gray-400 italic">No members</div>
+        {% endif %}
+
+        <!-- Sub-offices (recursive) -->
+        {% for child_node in office_node.children %}
+            {% include "admin_dashboard/includes/office_tree_node.html" with office_node=child_node %}
+        {% endfor %}
+    </div>
+</div>

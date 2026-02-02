@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Login - {{ brand_name|default:"Papertrail" }}{% endblock %}
+{% block content %}
+<div class="min-h-[80vh] flex items-center justify-center">
+    <div class="card w-full max-w-md">
+        <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6 text-center">Sign in to {{ brand_name|default:"Papertrail" }}</h2>
+        <form method="post" class="space-y-4">
+            {% csrf_token %}
+            <div>
+                <label for="id_username" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+                {{ form.username }}
+                {% if form.username.errors %}<p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ form.username.errors.0 }}</p>{% endif %}
+            </div>
+            <div>
+                <label for="id_password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
+                {{ form.password }}
+                {% if form.password.errors %}<p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ form.password.errors.0 }}</p>{% endif %}
+            </div>
+            {% if form.non_field_errors %}
+            <div class="rounded-md bg-red-50 dark:bg-red-900/50 p-3"><p class="text-sm text-red-800 dark:text-red-200">{{ form.non_field_errors.0 }}</p></div>
+            {% endif %}
+            <button type="submit" class="btn btn-primary w-full">Sign in</button>
+        </form>
+        <p class="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
+            Don't have an account? <a href="{% url 'accounts:register' %}" class="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">Register</a>
+        </p>
+    </div>
+</div>
+{% endblock %}
