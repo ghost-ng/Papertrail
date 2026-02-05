@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ organization.code }} - {{ brand_name|default:"Papertrail" }}{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="mb-6">
+        <nav class="text-sm text-gray-500 dark:text-gray-400 mb-2">
+            <a href="{% url 'organizations:organization_list' %}" class="hover:text-gray-700 dark:hover:text-gray-300">Organizations</a> &rarr;
+            <a href="{% url 'organizations:organization_detail' pk=organization.pk %}" class="hover:text-gray-700 dark:hover:text-gray-300">{{ organization.code }}</a> &rarr;
+            <span class="text-gray-900 dark:text-white">Edit</span>
+        </nav>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Edit Organization</h1>
+        <p class="text-gray-600 dark:text-gray-400">{{ organization.code }} - {{ organization.name }}</p>
+    </div>
+
+    <div class="card">
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+
+            <div>
+                <label for="id_description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Description
+                </label>
+                {{ form.description }}
+                {% if form.description.errors %}
+                <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ form.description.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div>
+                <label for="id_contact_email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Contact Email
+                </label>
+                {{ form.contact_email }}
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Public contact email for this organization
+                </p>
+                {% if form.contact_email.errors %}
+                <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ form.contact_email.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div>
+                <label for="id_contact_phone" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Contact Phone
+                </label>
+                {{ form.contact_phone }}
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Public contact phone for this organization
+                </p>
+                {% if form.contact_phone.errors %}
+                <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ form.contact_phone.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <a href="{% url 'organizations:organization_detail' pk=organization.pk %}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

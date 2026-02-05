@@ -1,0 +1,141 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block admin_content %}
+<div class="space-y-6">
+    <!-- Page Header -->
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Pending Approvals</h1>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Review and approve membership requests across all organizations and offices.</p>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="flex gap-4">
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg px-4 py-3 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
+                <span class="text-lg font-bold text-blue-600 dark:text-blue-400">{{ pending_org_memberships|length }}</span>
+            </div>
+            <span class="text-sm text-gray-600 dark:text-gray-400">Organization Requests</span>
+        </div>
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg px-4 py-3 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
+                <span class="text-lg font-bold text-green-600 dark:text-green-400">{{ pending_office_memberships|length }}</span>
+            </div>
+            <span class="text-sm text-gray-600 dark:text-gray-400">Office Requests</span>
+        </div>
+    </div>
+
+    <!-- Organization Membership Requests -->
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Organization Membership Requests</h2>
+        </div>
+        {% if pending_org_memberships %}
+        <div class="divide-y divide-gray-200 dark:divide-gray-700">
+            {% for membership in pending_org_memberships %}
+            <div class="px-6 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <div class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                        <span class="text-blue-600 dark:text-blue-400 font-medium">{{ membership.user.email|first|upper }}</span>
+                    </div>
+                    <div>
+                        <p class="font-medium text-gray-900 dark:text-white">{{ membership.user.email }}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                            Wants to join <span class="font-medium text-blue-600 dark:text-blue-400">{{ membership.organization.code }}</span>
+                            &middot; {{ membership.requested_at|timesince }} ago
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <form method="post" class="inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="membership_type" value="org">
+                        <input type="hidden" name="membership_id" value="{{ membership.pk }}">
+                        <input type="hidden" name="action" value="approve">
+                        <button type="submit" class="px-4 py-2 text-sm font-medium rounded-md bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800">
+                            Approve
+                        </button>
+                    </form>
+                    <form method="post" class="inline" x-data="{ showReason: false }">
+                        {% csrf_token %}
+                        <input type="hidden" name="membership_type" value="org">
+                        <input type="hidden" name="membership_id" value="{{ membership.pk }}">
+                        <input type="hidden" name="action" value="reject">
+                        <button type="submit" class="px-4 py-2 text-sm font-medium rounded-md bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800">
+                            Reject
+                        </button>
+                    </form>
+                    <a href="{% url 'admin_dashboard:user_detail' pk=membership.user.pk %}" class="px-4 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                        View User
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="px-6 py-12 text-center">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">No pending organization membership requests.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Office Membership Requests -->
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Office Membership Requests</h2>
+        </div>
+        {% if pending_office_memberships %}
+        <div class="divide-y divide-gray-200 dark:divide-gray-700">
+            {% for membership in pending_office_memberships %}
+            <div class="px-6 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <div class="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
+                        <span class="text-green-600 dark:text-green-400 font-medium">{{ membership.user.email|first|upper }}</span>
+                    </div>
+                    <div>
+                        <p class="font-medium text-gray-900 dark:text-white">{{ membership.user.email }}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                            Wants to join <span class="font-medium text-green-600 dark:text-green-400">{{ membership.office.organization.code }} {{ membership.office.code }}</span>
+                            &middot; {{ membership.joined_at|timesince }} ago
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <form method="post" class="inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="membership_type" value="office">
+                        <input type="hidden" name="membership_id" value="{{ membership.pk }}">
+                        <input type="hidden" name="action" value="approve">
+                        <button type="submit" class="px-4 py-2 text-sm font-medium rounded-md bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800">
+                            Approve
+                        </button>
+                    </form>
+                    <form method="post" class="inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="membership_type" value="office">
+                        <input type="hidden" name="membership_id" value="{{ membership.pk }}">
+                        <input type="hidden" name="action" value="reject">
+                        <button type="submit" class="px-4 py-2 text-sm font-medium rounded-md bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800">
+                            Reject
+                        </button>
+                    </form>
+                    <a href="{% url 'admin_dashboard:user_detail' pk=membership.user.pk %}" class="px-4 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                        View User
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="px-6 py-12 text-center">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">No pending office membership requests.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

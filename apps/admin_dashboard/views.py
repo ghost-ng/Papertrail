@@ -32,10 +32,16 @@ class AdminDashboardView(SystemAdminRequiredMixin, TemplateView):
         # User statistics
         context["total_users"] = User.objects.count()
         context["active_users"] = User.objects.filter(is_active=True).count()
-        # Pending org memberships (org memberships still have approval workflow)
-        context["pending_memberships"] = OrganizationMembership.objects.filter(
+        # Pending memberships (both org and office)
+        context["pending_org_memberships"] = OrganizationMembership.objects.filter(
             status=OrganizationMembership.STATUS_PENDING
         ).count()
+        context["pending_office_memberships"] = OfficeMembership.objects.filter(
+            status=OfficeMembership.STATUS_PENDING
+        ).count()
+        context["pending_memberships"] = (
+            context["pending_org_memberships"] + context["pending_office_memberships"]
+        )
 
         # Organization statistics
         context["total_organizations"] = Organization.objects.count()
@@ -382,6 +388,21 @@ class OrganizationDetailView(SystemAdminRequiredMixin, DetailView):
             else:
                 messages.error(request, "Code and name are required.")
 
+        elif action == "delete_organization":
+            # Check for packages before deleting
+            package_count = self.object.packages.count()
+            if package_count > 0:
+                messages.error(
+                    request,
+                    f"Cannot delete organization with {package_count} package(s). "
+                    "Archive or delete the packages first."
+                )
+            else:
+                org_code = self.object.code
+                self.object.delete()
+                messages.success(request, f"Organization '{org_code}' deleted.")
+                return redirect("admin_dashboard:organizations")
+
         return redirect("admin_dashboard:organization_detail", pk=self.object.pk)
 
 
@@ -541,6 +562,29 @@ class OfficeDetailView(SystemAdminRequiredMixin, DetailView):
             if membership_id:
                 OfficeMembership.objects.filter(pk=membership_id).delete()
                 messages.success(request, "Removed member from office.")
+
+        elif action == "delete_office":
+            # Check for sub-offices
+            sub_office_count = self.object.children.count()
+            if sub_office_count > 0:
+                messages.error(
+                    request,
+                    f"Cannot delete office with {sub_office_count} sub-office(s). "
+                    "Delete sub-offices first."
+                )
+            # Check for packages originated from this office
+            elif self.object.originated_packages.exists():
+                messages.error(
+                    request,
+                    "Cannot delete office with originated packages. "
+                    "Archive the packages first."
+                )
+            else:
+                org_pk = self.object.organization.pk
+                office_name = str(self.object)
+                self.object.delete()
+                messages.success(request, f"Office '{office_name}' deleted.")
+                return redirect("admin_dashboard:organization_detail", pk=org_pk)
 
         return redirect("admin_dashboard:office_detail", pk=self.object.pk)
 
@@ -778,9 +822,9 @@ class PermissionHierarchyView(SystemAdminRequiredMixin, TemplateView):
         for org in organizations:
             org_data = {
                 "organization": org,
-                "admins": OrganizationMembership.objects.filter(
+                "managers": OrganizationMembership.objects.filter(
                     organization=org,
-                    role=OrganizationMembership.ROLE_ADMIN,
+                    role=OrganizationMembership.ROLE_MANAGER,
                     status="approved",
                 ).select_related("user"),
                 "offices": HierarchyService.build_nested_tree(org),
@@ -795,3 +839,64 @@ class PermissionHierarchyView(SystemAdminRequiredMixin, TemplateView):
         context["total_offices"] = Office.objects.filter(is_active=True).count()
 
         return context
+
+
+class PendingApprovalsView(SystemAdminRequiredMixin, TemplateView):
+    """View all pending membership approvals across the system."""
+
+    template_name = "admin_dashboard/pending_approvals.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Pending organization memberships
+        context["pending_org_memberships"] = OrganizationMembership.objects.filter(
+            status=OrganizationMembership.STATUS_PENDING
+        ).select_related("user", "organization").order_by("-requested_at")
+
+        # Pending office memberships
+        context["pending_office_memberships"] = OfficeMembership.objects.filter(
+            status=OfficeMembership.STATUS_PENDING
+        ).select_related("user", "office", "office__organization").order_by("-joined_at")
+
+        return context
+
+    def post(self, request, *args, **kwargs):
+        """Handle batch approval/rejection."""
+        action = request.POST.get("action")
+        membership_type = request.POST.get("membership_type")
+        membership_id = request.POST.get("membership_id")
+
+        if membership_type == "org":
+            membership = get_object_or_404(OrganizationMembership, pk=membership_id)
+            if action == "approve":
+                membership.status = OrganizationMembership.STATUS_APPROVED
+                membership.reviewed_at = timezone.now()
+                membership.reviewed_by = request.user
+                membership.save()
+                messages.success(request, f"Approved {membership.user.email} for {membership.organization.code}.")
+            elif action == "reject":
+                membership.status = OrganizationMembership.STATUS_REJECTED
+                membership.reviewed_at = timezone.now()
+                membership.reviewed_by = request.user
+                membership.rejection_reason = request.POST.get("reason", "")
+                membership.save()
+                messages.success(request, f"Rejected {membership.user.email} for {membership.organization.code}.")
+
+        elif membership_type == "office":
+            membership = get_object_or_404(OfficeMembership, pk=membership_id)
+            if action == "approve":
+                membership.status = OfficeMembership.STATUS_APPROVED
+                membership.reviewed_at = timezone.now()
+                membership.reviewed_by = request.user
+                membership.save()
+                messages.success(request, f"Approved {membership.user.email} for {membership.office}.")
+            elif action == "reject":
+                membership.status = OfficeMembership.STATUS_REJECTED
+                membership.reviewed_at = timezone.now()
+                membership.reviewed_by = request.user
+                membership.rejection_reason = request.POST.get("reason", "")
+                membership.save()
+                messages.success(request, f"Rejected {membership.user.email} for {membership.office}.")
+
+        return redirect("admin_dashboard:pending_approvals")

@@ -56,9 +56,12 @@
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                     {{ workflow.created_at|date:"M d, Y" }}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                     <a href="{% url 'packages:workflow_builder' workflow.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline">
-                        Edit Builder
+                        Edit
+                    </a>
+                    <a href="{% url 'packages:workflow_duplicate' workflow.pk %}" class="text-gray-600 dark:text-gray-400 hover:underline">
+                        Duplicate
                     </a>
                 </td>
             </tr>

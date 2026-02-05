@@ -24,7 +24,7 @@ class PackageAccessMixin:
 
     Visibility rules:
     - Superusers: Can see all packages
-    - org_member/org_admin: Can see all packages from their organization
+    - org_member/org_manager: Can see all packages from their organization
     - office_member: Can see packages from their office(s)
     - Package originator: Can always see their own packages
     """
@@ -41,23 +41,25 @@ class PackageAccessMixin:
         # Superusers can access all offices
         if self.request.user.is_superuser:
             return Office.objects.values_list("id", flat=True)
-        # Office membership is immediate (no status field)
+        # Filter by approved memberships
         return OfficeMembership.objects.filter(
-            user=self.request.user
+            user=self.request.user,
+            status=OfficeMembership.STATUS_APPROVED,
         ).values_list("office_id", flat=True)
 
     def get_offices_for_initiation(self):
         """
         Get offices where user can create packages.
 
-        Any office member can initiate packages from their offices.
+        Any approved office member can initiate packages from their offices.
         Workflow assignment determines what actions they can take.
         """
         if self.request.user.is_superuser:
             return Office.objects.filter(is_active=True)
-        # Get user's office memberships
+        # Get user's approved office memberships
         user_office_ids = OfficeMembership.objects.filter(
-            user=self.request.user
+            user=self.request.user,
+            status=OfficeMembership.STATUS_APPROVED,
         ).values_list("office_id", flat=True)
         return Office.objects.filter(pk__in=user_office_ids, is_active=True)
 
@@ -102,6 +104,7 @@ class PackageDetailView(LoginRequiredMixin, PackageAccessMixin, DetailView):
             if stage:
                 user_offices = OfficeMembership.objects.filter(
                     user=self.request.user,
+                    status=OfficeMembership.STATUS_APPROVED,
                 ).values_list("office_id", flat=True)
                 context["can_act"] = stage.assigned_offices.filter(pk__in=user_offices).exists()
             else:
@@ -273,6 +276,13 @@ class WorkflowTemplateCreateView(LoginRequiredMixin, WorkflowAccessMixin, Create
     model = WorkflowTemplate
     form_class = WorkflowTemplateForm
     template_name = "packages/workflow_form.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        from apps.organizations.services import PermissionService
+        if not PermissionService.can_create_workflow(request.user):
+            messages.error(request, "You don't have permission to create workflow templates.")
+            return redirect("packages:workflow_list")
+        return super().dispatch(request, *args, **kwargs)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -510,6 +520,111 @@ class WorkflowLoadAPIView(LoginRequiredMixin, View):
         })
 
 
+class WorkflowDuplicateView(LoginRequiredMixin, WorkflowAccessMixin, View):
+    """Duplicate a workflow template to the same or different organization."""
+
+    def get(self, request, pk):
+        from apps.organizations.services import PermissionService
+
+        source_workflow = get_object_or_404(WorkflowTemplate, pk=pk)
+
+        # Check if user can view the source workflow
+        if not PermissionService.can_view_workflow(request.user, source_workflow):
+            messages.error(request, "You don't have permission to view this workflow.")
+            return redirect("packages:workflow_list")
+
+        # Check if user can create workflows
+        if not PermissionService.can_create_workflow(request.user):
+            messages.error(request, "You don't have permission to create workflow templates.")
+            return redirect("packages:workflow_list")
+
+        user_orgs = self.get_user_organizations()
+        organizations = Organization.objects.filter(id__in=user_orgs)
+
+        return render(request, "packages/workflow_duplicate.html", {
+            "source_workflow": source_workflow,
+            "organizations": organizations,
+        })
+
+    def post(self, request, pk):
+        from apps.organizations.services import PermissionService
+
+        source_workflow = get_object_or_404(WorkflowTemplate, pk=pk)
+
+        # Check permissions
+        if not PermissionService.can_duplicate_workflow(request.user, source_workflow):
+            messages.error(request, "You don't have permission to duplicate this workflow.")
+            return redirect("packages:workflow_list")
+
+        # Get target organization
+        target_org_id = request.POST.get("organization")
+        target_org = None
+        if target_org_id:
+            target_org = get_object_or_404(Organization, pk=target_org_id)
+            # Verify user has access to target org
+            if not PermissionService.can_create_workflow(request.user, target_org):
+                messages.error(request, "You don't have permission to create workflows for this organization.")
+                return redirect("packages:workflow_list")
+
+        # Get new name
+        new_name = request.POST.get("name", "").strip()
+        if not new_name:
+            new_name = f"{source_workflow.name} (Copy)"
+
+        # Create the duplicate
+        new_workflow = WorkflowTemplate.objects.create(
+            organization=target_org,
+            name=new_name,
+            description=source_workflow.description,
+            canvas_data=source_workflow.canvas_data,
+            is_active=True,
+            created_by=request.user,
+        )
+
+        # Duplicate stage nodes
+        for stage in source_workflow.stagenode_nodes.all():
+            new_stage = StageNode.objects.create(
+                template=new_workflow,
+                node_id=stage.node_id,
+                name=stage.name,
+                action_type=stage.action_type,
+                multi_office_rule=stage.multi_office_rule,
+                is_optional=stage.is_optional,
+                timeout_days=stage.timeout_days,
+                position_x=stage.position_x,
+                position_y=stage.position_y,
+                config=stage.config,
+            )
+            # Copy assigned offices
+            new_stage.assigned_offices.set(stage.assigned_offices.all())
+
+        # Duplicate action nodes
+        for action in source_workflow.actionnode_nodes.all():
+            ActionNode.objects.create(
+                template=new_workflow,
+                node_id=action.node_id,
+                name=action.name,
+                action_type=action.action_type,
+                execution_mode=action.execution_mode,
+                action_config=action.action_config,
+                position_x=action.position_x,
+                position_y=action.position_y,
+                config=action.config,
+            )
+
+        # Duplicate connections
+        for conn in source_workflow.connections.all():
+            NodeConnection.objects.create(
+                template=new_workflow,
+                from_node=conn.from_node,
+                to_node=conn.to_node,
+                connection_type=conn.connection_type,
+            )
+
+        messages.success(request, f"Workflow '{new_workflow.name}' created as a copy.")
+        return redirect("packages:workflow_builder", pk=new_workflow.pk)
+
+
 # ============================================================================
 # Routing Views
 # ============================================================================
@@ -549,9 +664,10 @@ class StageActionView(LoginRequiredMixin, View):
         if not stage:
             return None
 
-        # Get user's office memberships
+        # Get user's approved office memberships
         user_offices = OfficeMembership.objects.filter(
             user=user,
+            status=OfficeMembership.STATUS_APPROVED,
         ).values_list("office_id", flat=True)
 
         # Find which of user's offices is assigned to this stage

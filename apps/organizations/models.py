@@ -12,6 +12,8 @@ class Organization(TimeStampedModel):
     code = models.CharField(max_length=20, unique=True)
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
+    contact_email = models.EmailField(blank=True, help_text="General contact email for this organization")
+    contact_phone = models.CharField(max_length=30, blank=True, help_text="Contact phone number")
     is_active = models.BooleanField(default=True)
 
     class Meta:
@@ -25,6 +27,11 @@ class Organization(TimeStampedModel):
         self.code = self.code.upper()
         super().save(*args, **kwargs)
 
+    def get_absolute_url(self):
+        """Return URL to organization detail page."""
+        from django.urls import reverse
+        return reverse("organizations:organization_detail", kwargs={"pk": self.pk})
+
 
 class Office(TimeStampedModel):
     """Office model - belongs to an organization with unlimited nesting."""
@@ -37,6 +44,8 @@ class Office(TimeStampedModel):
     code = models.CharField(max_length=20)
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
+    contact_email = models.EmailField(blank=True, help_text="General contact email for this office")
+    contact_phone = models.CharField(max_length=30, blank=True, help_text="Contact phone number")
     parent = models.ForeignKey(
         "self",
         on_delete=models.CASCADE,
@@ -89,22 +98,30 @@ class Office(TimeStampedModel):
             current = current.parent
         return depth
 
+    def get_absolute_url(self):
+        """Return URL to office detail page."""
+        from django.urls import reverse
+        return reverse(
+            "organizations:office_detail",
+            kwargs={"org_pk": self.organization.pk, "pk": self.pk},
+        )
+
 
 class OrganizationMembership(TimeStampedModel):
     """
     Membership at the organization level.
 
     Roles:
-    - org_admin: Full access to manage the organization, all offices, and members
+    - org_manager: Full access to manage the organization, all offices, and members
     - org_member: Visibility access - can view packages from all offices in the org
                   (even without direct office membership). Does not grant workflow
                   participation; that requires OfficeMembership.
     """
 
-    ROLE_ADMIN = "org_admin"
+    ROLE_MANAGER = "org_manager"
     ROLE_MEMBER = "org_member"
     ROLE_CHOICES = [
-        (ROLE_ADMIN, "Organization Admin"),
+        (ROLE_MANAGER, "Organization Manager"),
         (ROLE_MEMBER, "Organization Member"),
     ]
 
@@ -159,27 +176,36 @@ class OrganizationMembership(TimeStampedModel):
         return self.status == self.STATUS_APPROVED
 
     @property
-    def is_admin(self):
-        """Check if user is an org admin."""
-        return self.role == self.ROLE_ADMIN and self.is_approved
+    def is_manager(self):
+        """Check if user is an org manager."""
+        return self.role == self.ROLE_MANAGER and self.is_approved
 
 
 class OfficeMembership(TimeStampedModel):
     """
     Membership at the office level.
 
-    Simplified model:
-    - admin: Can manage office members and create sub-offices
+    Roles:
+    - manager: Can manage office members and create sub-offices
     - member: Participates in workflows assigned to this office
 
-    Membership is immediate (no approval workflow).
+    Status workflow allows membership requests with manager approval.
     """
 
-    ROLE_ADMIN = "admin"
+    ROLE_MANAGER = "manager"
     ROLE_MEMBER = "member"
     ROLE_CHOICES = [
-        (ROLE_ADMIN, "Admin"),
+        (ROLE_MANAGER, "Manager"),
         (ROLE_MEMBER, "Member"),
+    ]
+
+    STATUS_PENDING = "pending"
+    STATUS_APPROVED = "approved"
+    STATUS_REJECTED = "rejected"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_APPROVED, "Approved"),
+        (STATUS_REJECTED, "Rejected"),
     ]
 
     user = models.ForeignKey(
@@ -193,6 +219,11 @@ class OfficeMembership(TimeStampedModel):
         related_name="memberships",
     )
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_MEMBER)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_APPROVED,  # Direct adds are approved immediately
+    )
     joined_at = models.DateTimeField(auto_now_add=True)
     added_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -201,6 +232,15 @@ class OfficeMembership(TimeStampedModel):
         blank=True,
         related_name="office_memberships_added",
     )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="office_membership_reviews",
+    )
+    rejection_reason = models.TextField(blank=True)
 
     class Meta:
         unique_together = ["user", "office"]
@@ -209,12 +249,18 @@ class OfficeMembership(TimeStampedModel):
             models.Index(fields=["user"]),
             models.Index(fields=["office"]),
             models.Index(fields=["role"]),
+            models.Index(fields=["status"]),
         ]
 
     def __str__(self):
         return f"{self.user.email} - {self.office} ({self.role})"
 
     @property
-    def is_admin(self):
-        """Check if user is an office admin."""
-        return self.role == self.ROLE_ADMIN
+    def is_approved(self):
+        """Check if membership is approved."""
+        return self.status == self.STATUS_APPROVED
+
+    @property
+    def is_manager(self):
+        """Check if user is an approved office manager."""
+        return self.role == self.ROLE_MANAGER and self.is_approved

@@ -25,4 +25,5 @@ urlpatterns = [
     path("workflows/<int:pk>/builder/", views.WorkflowBuilderView.as_view(), name="workflow_builder"),
     path("workflows/<int:pk>/save/", views.WorkflowSaveAPIView.as_view(), name="workflow_save"),
     path("workflows/<int:pk>/load/", views.WorkflowLoadAPIView.as_view(), name="workflow_load"),
+    path("workflows/<int:pk>/duplicate/", views.WorkflowDuplicateView.as_view(), name="workflow_duplicate"),
 ]

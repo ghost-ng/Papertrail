@@ -53,6 +53,13 @@
                 </svg>
                 Hierarchy
             </a>
+            <a href="{% url 'admin_dashboard:pending_approvals' %}"
+               class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if 'pending_approvals' in request.resolver_match.url_name %}bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-200{% else %}text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">
+                <svg class="mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Approvals
+            </a>
             <a href="{% url 'admin_dashboard:audit_log' %}"
                class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if 'audit' in request.resolver_match.url_name %}bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-200{% else %}text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">
                 <svg class="mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

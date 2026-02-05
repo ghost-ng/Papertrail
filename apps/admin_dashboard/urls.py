@@ -9,6 +9,7 @@ from .views import (
     OfficeManagementView,
     OrganizationDetailView,
     OrganizationManagementView,
+    PendingApprovalsView,
     PermissionHierarchyView,
     SystemSettingsView,
     UserDetailView,
@@ -38,4 +39,6 @@ urlpatterns = [
     path("settings/", SystemSettingsView.as_view(), name="settings"),
     # Permission hierarchy
     path("hierarchy/", PermissionHierarchyView.as_view(), name="hierarchy"),
+    # Pending approvals
+    path("approvals/", PendingApprovalsView.as_view(), name="pending_approvals"),
 ]

@@ -22,11 +22,11 @@ class SystemAdminRequiredMixin(UserPassesTestMixin):
         return context
 
 
-class OrgAdminRequiredMixin(UserPassesTestMixin):
-    """Require user to be an org admin for the specified organization."""
+class OrgManagerRequiredMixin(UserPassesTestMixin):
+    """Require user to be an org manager for the specified organization."""
 
     def test_func(self):
-        """Check if user has org admin permissions."""
+        """Check if user has org manager permissions."""
         user = self.request.user
         if not user.is_authenticated:
             return False
@@ -35,7 +35,7 @@ class OrgAdminRequiredMixin(UserPassesTestMixin):
         if user.groups.filter(name="system_admins").exists():
             return True
 
-        # Check org_admin role via OrganizationMembership
+        # Check org_manager role via OrganizationMembership
         org_id = self.kwargs.get("org_id") or self.request.GET.get("org_id")
         if org_id:
             from apps.organizations.models import OrganizationMembership
@@ -43,24 +43,24 @@ class OrgAdminRequiredMixin(UserPassesTestMixin):
             return OrganizationMembership.objects.filter(
                 user=user,
                 organization_id=org_id,
-                role=OrganizationMembership.ROLE_ADMIN,
+                role=OrganizationMembership.ROLE_MANAGER,
                 status=OrganizationMembership.STATUS_APPROVED,
             ).exists()
         return False
 
 
-class OfficeAdminRequiredMixin(UserPassesTestMixin):
+class OfficeManagerRequiredMixin(UserPassesTestMixin):
     """
-    Require user to be an office admin for the specified office.
+    Require user to be an office manager for the specified office.
 
     Checks:
     - System admin (superuser, staff, system_admins group)
-    - Org admin for the office's organization
-    - Office admin for the office OR any ancestor office
+    - Org manager for the office's organization
+    - Office manager for the office OR any ancestor office
     """
 
     def test_func(self):
-        """Check if user has office admin permissions."""
+        """Check if user has office manager permissions."""
         user = self.request.user
         if not user.is_authenticated:
             return False
@@ -80,23 +80,19 @@ class OfficeAdminRequiredMixin(UserPassesTestMixin):
         except Office.DoesNotExist:
             return False
 
-        # Check if user is org admin for this office's organization
+        # Check if user is org manager for this office's organization
         if OrganizationMembership.objects.filter(
             user=user,
             organization=office.organization,
-            role=OrganizationMembership.ROLE_ADMIN,
+            role=OrganizationMembership.ROLE_MANAGER,
             status=OrganizationMembership.STATUS_APPROVED,
         ).exists():
             return True
 
-        # Check if user is office admin for this office OR any ancestor
+        # Check if user is office manager for this office OR any ancestor
         office_ids = [office.pk] + [a.pk for a in office.get_ancestors()]
         return OfficeMembership.objects.filter(
             user=user,
             office_id__in=office_ids,
-            role=OfficeMembership.ROLE_ADMIN,
+            role=OfficeMembership.ROLE_MANAGER,
         ).exists()
-
-
-# Backwards compatibility alias
-OfficeManagerRequiredMixin = OfficeAdminRequiredMixin

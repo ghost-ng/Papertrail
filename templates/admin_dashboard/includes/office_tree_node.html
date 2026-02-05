@@ -1,6 +1,6 @@
 {% comment %}
 Recursive template for rendering an office and its children in the hierarchy tree.
-Expects: office_node (dict with office, admins, members, children)
+Expects: office_node (dict with office, managers, members, children)
 {% endcomment %}
 <div x-data="{ open: expandAll }" x-effect="open = expandAll">
     <div class="tree-row cursor-pointer" @click="open = !open">
@@ -14,16 +14,16 @@ Expects: office_node (dict with office, admins, members, children)
     </div>
 
     <div x-show="open" x-collapse class="tree-branch">
-        <!-- Office Admins -->
-        {% if office_node.admins %}
+        <!-- Office Managers -->
+        {% if office_node.managers %}
         <div x-data="{ open: false }">
             <div class="tree-row cursor-pointer" @click="open = !open">
                 <svg class="tree-arrow" :class="{ 'rotate-90': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-                <span class="text-green-600 dark:text-green-400">Admins</span>
-                <span class="tree-count">({{ office_node.admins.count }})</span>
+                <span class="text-green-600 dark:text-green-400">Managers</span>
+                <span class="tree-count">({{ office_node.managers.count }})</span>
             </div>
             <div x-show="open" x-collapse class="tree-branch">
-                {% for m in office_node.admins %}
+                {% for m in office_node.managers %}
                 <div class="tree-row tree-leaf">
                     <svg class="tree-icon text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
                     <a href="{% url 'admin_dashboard:user_detail' pk=m.user.pk %}" class="tree-link">{{ m.user.email }}</a>
@@ -52,7 +52,7 @@ Expects: office_node (dict with office, admins, members, children)
         </div>
         {% endif %}
 
-        {% if not office_node.admins and not office_node.members and not office_node.children %}
+        {% if not office_node.managers and not office_node.members and not office_node.children %}
         <div class="tree-row tree-leaf text-gray-400 italic">No members</div>
         {% endif %}
 
