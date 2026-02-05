@@ -1,11 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ organization.code }} - {{ brand_name|default:"Papertrail" }}{% endblock %}
 {% block content %}
-<div x-data="{ showToast: false, toastMessage: '', toastType: 'success' }"
-     @show-toast.window="showToast = true; toastMessage = $event.detail.message; toastType = $event.detail.type; setTimeout(() => showToast = false, 3000)"
-     class="relative">
-<!-- Standard Toast Component -->
-{% include "includes/toast.html" %}
+<div>
 
 <div class="mb-8">
     <nav class="text-sm text-gray-500 dark:text-gray-400 mb-2">
