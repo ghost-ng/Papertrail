@@ -79,6 +79,21 @@
         .dark [data-tooltip]::after {
             border-top-color: #e5e7eb;
         }
+        /* Tooltip below variant for navbar */
+        [data-tooltip].tooltip-below::before {
+            bottom: auto;
+            top: calc(100% + 8px);
+        }
+        [data-tooltip].tooltip-below::after {
+            bottom: auto;
+            top: calc(100% + 2px);
+            border-top-color: transparent;
+            border-bottom-color: #1f2937;
+        }
+        .dark [data-tooltip].tooltip-below::after {
+            border-top-color: transparent;
+            border-bottom-color: #e5e7eb;
+        }
         /* Hide default browser tooltips */
         [data-tooltip][title] { title: none; }
     </style>
@@ -105,7 +120,7 @@
                 <div class="flex items-center space-x-2">
                     <!-- Notification Bell -->
                     <div class="relative" x-data="notificationBell()" x-init="startPolling()">
-                        <a href="{% url 'collaboration:notifications' %}" class="relative inline-flex items-center justify-center w-9 h-9 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" data-tooltip="Notifications">
+                        <a href="{% url 'collaboration:notifications' %}" class="relative inline-flex items-center justify-center w-9 h-9 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors tooltip-below" data-tooltip="Notifications">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
                             </svg>
@@ -114,7 +129,7 @@
                     </div>
 
                     <!-- Dark mode toggle -->
-                    <button @click="darkMode = !darkMode" class="inline-flex items-center justify-center w-9 h-9 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" data-tooltip="Toggle dark mode">
+                    <button @click="darkMode = !darkMode" class="inline-flex items-center justify-center w-9 h-9 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors tooltip-below" data-tooltip="Toggle dark mode">
                         <svg x-show="!darkMode" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
                         </svg>
