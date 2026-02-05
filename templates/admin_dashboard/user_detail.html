@@ -20,27 +20,18 @@
                 <p class="text-sm text-gray-500 dark:text-gray-400">{{ user_obj.email }}</p>
             </div>
         </div>
-        <div class="flex space-x-2">
-            <form method="post" class="inline">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="toggle_active">
-                <button type="submit" class="px-4 py-2 text-sm font-medium rounded-md {% if user_obj.is_active %}bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/50 dark:text-red-300{% else %}bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300{% endif %}">
-                    {% if user_obj.is_active %}Deactivate{% else %}Activate{% endif %}
-                </button>
-            </form>
-            <form method="post" class="inline">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="toggle_staff">
-                <button type="submit" class="px-4 py-2 text-sm font-medium rounded-md {% if user_obj.is_staff %}bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300{% else %}bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-300{% endif %}">
-                    {% if user_obj.is_staff %}Remove Staff{% else %}Make Staff{% endif %}
-                </button>
-            </form>
-        </div>
+        <form method="post" class="inline">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="toggle_active">
+            <button type="submit" class="px-4 py-2 text-sm font-medium rounded-md {% if user_obj.is_active %}bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/50 dark:text-red-300{% else %}bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300{% endif %}">
+                {% if user_obj.is_active %}Deactivate{% else %}Activate{% endif %}
+            </button>
+        </form>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- User Info Card -->
-        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6 min-h-[200px]">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">User Information</h2>
             <dl class="space-y-3">
                 <div class="flex justify-between">
@@ -56,7 +47,7 @@
                 <div class="flex justify-between">
                     <dt class="text-sm text-gray-500 dark:text-gray-400">Role</dt>
                     <dd class="text-sm text-gray-900 dark:text-white">
-                        {% if user_obj.is_superuser %}Superuser{% elif user_obj.is_staff %}Staff{% else %}User{% endif %}
+                        {% if user_obj.is_superuser %}System Admin{% else %}User{% endif %}
                     </dd>
                 </div>
                 <div class="flex justify-between">
@@ -71,7 +62,7 @@
         </div>
 
         <!-- Groups Card -->
-        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6 min-h-[200px]">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Permission Groups</h2>
             <div class="space-y-2 mb-4">
                 {% for group in user_groups %}
@@ -104,19 +95,19 @@
         </div>
 
         <!-- Organization Memberships -->
-        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6 min-h-[220px] overflow-hidden">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Organization Memberships</h2>
             <div class="space-y-2 mb-4">
                 {% for m in org_memberships %}
                 <div class="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-gray-700 rounded">
-                    <div>
+                    <div class="min-w-0 flex-1">
                         <span class="text-sm font-medium text-gray-900 dark:text-white">{{ m.organization.code }}</span>
                         <span class="text-xs text-gray-500 dark:text-gray-400 ml-2">{{ m.get_role_display }}</span>
                         {% if m.status != 'approved' %}
                         <span class="ml-2 px-1.5 text-xs rounded bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">{{ m.get_status_display }}</span>
                         {% endif %}
                     </div>
-                    <form method="post" class="inline">
+                    <form method="post" class="inline flex-shrink-0 ml-2">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="remove_from_org">
                         <input type="hidden" name="membership_id" value="{{ m.id }}">
@@ -127,35 +118,35 @@
                 <p class="text-sm text-gray-500 dark:text-gray-400">No organization memberships</p>
                 {% endfor %}
             </div>
-            <form method="post" class="flex gap-2">
+            <form method="post" class="flex flex-wrap gap-2">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="add_to_org">
-                <select name="org_id" class="flex-1 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md">
+                <select name="org_id" class="flex-1 min-w-0 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md">
                     <option value="">Select organization...</option>
                     {% for org in organizations %}
                     <option value="{{ org.id }}">{{ org.code }} - {{ org.name }}</option>
                     {% endfor %}
                 </select>
-                <select name="role" class="text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md" title="Member = visibility only, Admin = full org access">
+                <select name="role" class="w-24 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md" title="Member = visibility only, Manager = full org access">
                     <option value="org_member">Member</option>
-                    <option value="org_admin">Admin</option>
+                    <option value="org_manager">Manager</option>
                 </select>
-                <button type="submit" class="px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md">Add</button>
+                <button type="submit" class="px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md flex-shrink-0">Add</button>
             </form>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Member = view packages; Admin = manage org</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Member = view packages; Manager = manage org</p>
         </div>
 
         <!-- Office Memberships -->
-        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6 min-h-[220px] overflow-hidden">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Office Memberships</h2>
             <div class="space-y-2 mb-4 max-h-64 overflow-y-auto">
                 {% for m in office_memberships %}
                 <div class="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-gray-700 rounded">
-                    <div>
+                    <div class="min-w-0 flex-1 truncate">
                         <a href="{% url 'admin_dashboard:office_detail' pk=m.office.pk %}" class="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline">{{ m.office }}</a>
                         <span class="text-xs text-gray-500 dark:text-gray-400 ml-2">{{ m.get_role_display }}</span>
                     </div>
-                    <form method="post" class="inline">
+                    <form method="post" class="inline flex-shrink-0 ml-2">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="remove_from_office">
                         <input type="hidden" name="membership_id" value="{{ m.id }}">
@@ -166,22 +157,22 @@
                 <p class="text-sm text-gray-500 dark:text-gray-400">No office memberships</p>
                 {% endfor %}
             </div>
-            <form method="post" class="flex gap-2">
+            <form method="post" class="flex flex-wrap gap-2">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="add_to_office">
-                <select name="office_id" class="flex-1 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md">
+                <select name="office_id" class="flex-1 min-w-0 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md">
                     <option value="">Select office...</option>
                     {% for office in offices %}
                     <option value="{{ office.id }}">{{ office }}</option>
                     {% endfor %}
                 </select>
-                <select name="role" class="text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md" title="Member = workflow participation, Admin = manage office">
+                <select name="role" class="w-24 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md" title="Member = workflow participation, Manager = manage office">
                     <option value="member">Member</option>
-                    <option value="admin">Admin</option>
+                    <option value="manager">Manager</option>
                 </select>
-                <button type="submit" class="px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md">Add</button>
+                <button type="submit" class="px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md flex-shrink-0">Add</button>
             </form>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Member = workflow participation; Admin = manage office + sub-offices</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Member = workflow participation; Manager = manage office + sub-offices</p>
         </div>
     </div>
 

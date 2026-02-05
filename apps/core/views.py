@@ -8,7 +8,7 @@ from django.views.generic import TemplateView
 from apps.collaboration.models import Notification
 from apps.collaboration.services import NotificationService
 from apps.core.mixins import LoginRequiredMixin
-from apps.organizations.models import OfficeMembership
+from apps.organizations.models import OfficeMembership, OrganizationMembership
 from apps.packages.models import Package, StageNode
 
 
@@ -24,12 +24,19 @@ class UserDashboardView(LoginRequiredMixin, View):
     def get(self, request):
         user = request.user
 
-        # Get user's office memberships (membership is immediate)
-        memberships = OfficeMembership.objects.filter(
+        # Get user's office memberships
+        office_memberships = OfficeMembership.objects.filter(
             user=user,
+            status=OfficeMembership.STATUS_APPROVED,
         ).select_related("office", "office__organization")
 
-        office_ids = [m.office_id for m in memberships]
+        # Get user's organization memberships
+        org_memberships = OrganizationMembership.objects.filter(
+            user=user,
+            status=OrganizationMembership.STATUS_APPROVED,
+        ).select_related("organization")
+
+        office_ids = [m.office_id for m in office_memberships]
 
         # Packages requiring action - at stages assigned to user's offices
         action_required = []
@@ -69,7 +76,8 @@ class UserDashboardView(LoginRequiredMixin, View):
             "my_packages_count": my_packages.count() if hasattr(my_packages, "count") else len(my_packages),
             "notifications": notifications,
             "unread_count": unread_count,
-            "memberships": memberships,
+            "office_memberships": office_memberships,
+            "org_memberships": org_memberships,
         }
 
         return render(request, "dashboards/user_dashboard.html", context)

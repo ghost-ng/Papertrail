@@ -1,13 +1,35 @@
 {% extends "base.html" %}
 {% block title %}{{ organization.code }} - {{ brand_name|default:"Papertrail" }}{% endblock %}
 {% block content %}
+<div x-data="{ showToast: false }" class="relative">
+<!-- Toast Notification -->
+<div x-show="showToast" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 translate-y-2" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg shadow-lg flex items-center gap-2">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+    Copied to clipboard
+</div>
+
 <div class="mb-8">
-    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ organization.code }} - {{ organization.name }}</h1>
-    {% if organization.description %}<p class="text-gray-600 dark:text-gray-400">{{ organization.description }}</p>{% endif %}
+    <nav class="text-sm text-gray-500 dark:text-gray-400 mb-2">
+        <a href="{% url 'organizations:organization_list' %}" class="hover:text-gray-700 dark:hover:text-gray-300">Organizations</a> &rarr;
+        <span class="text-gray-900 dark:text-white">{{ organization.code }}</span>
+    </nav>
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ organization.code }} - {{ organization.name }}</h1>
+            {% if organization.description %}<p class="text-gray-600 dark:text-gray-400">{{ organization.description }}</p>{% endif %}
+        </div>
+        {% if can_edit %}
+        <a href="{% url 'organizations:organization_edit' pk=organization.pk %}" class="btn btn-secondary text-sm">
+            <svg class="w-4 h-4 mr-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+            Edit
+        </a>
+        {% endif %}
+    </div>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-2">
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Offices -->
         <div class="card">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Offices</h2>
             {% if offices %}
@@ -16,6 +38,9 @@
                 <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     <div>
                         <p class="font-medium text-gray-900 dark:text-white">{{ office.code }} - {{ office.name }}</p>
+                        {% if office.children.exists %}
+                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ office.children.count }} sub-offices</p>
+                        {% endif %}
                     </div>
                     <a href="{% url 'organizations:office_detail' org_pk=organization.pk pk=office.pk %}" class="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm">View</a>
                 </div>
@@ -25,16 +50,91 @@
             <p class="text-gray-500 dark:text-gray-400">No offices in this organization.</p>
             {% endif %}
         </div>
+
+        <!-- Pending Approvals (for managers) -->
+        {% if can_approve and pending_memberships %}
+        <div class="card border-l-4 border-yellow-500">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Pending Membership Requests</h2>
+            <div class="space-y-3">
+                {% for membership in pending_memberships %}
+                <div class="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                    <div>
+                        <p class="font-medium text-gray-900 dark:text-white">{{ membership.user.email }}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Requested {{ membership.requested_at|timesince }} ago</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <form method="post" action="{% url 'organizations:approve_org_membership' pk=membership.pk %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="approve">
+                            <button type="submit" class="px-3 py-1 text-xs font-medium rounded bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800">Approve</button>
+                        </form>
+                        <form method="post" action="{% url 'organizations:approve_org_membership' pk=membership.pk %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="reject">
+                            <button type="submit" class="px-3 py-1 text-xs font-medium rounded bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800">Reject</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
     </div>
 
-    <div>
+    <div class="space-y-6">
+        {% if organization.contact_email or organization.contact_phone %}
+        <!-- Contact Information -->
+        <div class="card">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Contact Information</h2>
+            <dl class="space-y-3">
+                {% if organization.contact_email %}
+                <div class="flex items-center gap-2">
+                    <dt class="sr-only">Email</dt>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                    <dd><a href="mailto:{{ organization.contact_email }}" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">{{ organization.contact_email }}</a></dd>
+                </div>
+                {% endif %}
+                {% if organization.contact_phone %}
+                <div class="flex items-center gap-2">
+                    <dt class="sr-only">Phone</dt>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
+                    <dd><a href="tel:{{ organization.contact_phone }}" class="text-sm text-gray-900 dark:text-white hover:underline">{{ organization.contact_phone }}</a></dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+        {% endif %}
+
+        <!-- Your Membership -->
         <div class="card">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Your Membership</h2>
             {% if user_membership %}
                 {% if user_membership.is_approved %}
-                <span class="badge badge-green">{{ user_membership.get_role_display }}</span>
+                <div class="flex items-center gap-2">
+                    <span class="px-2.5 py-0.5 rounded text-xs font-medium
+                        {% if user_membership.role == 'org_manager' %}
+                        bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200
+                        {% else %}
+                        bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-200
+                        {% endif %}
+                    ">{{ user_membership.get_role_display }}</span>
+                </div>
+                {% elif user_membership.status == 'pending' %}
+                <div class="flex items-center gap-2">
+                    <span class="px-2.5 py-0.5 rounded text-xs font-medium bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200">Pending Approval</span>
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Your membership request is awaiting approval from an organization manager.</p>
                 {% else %}
-                <span class="badge badge-yellow">Pending Approval</span>
+                <div class="flex items-center gap-2">
+                    <span class="px-2.5 py-0.5 rounded text-xs font-medium bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200">Rejected</span>
+                </div>
+                {% if user_membership.rejection_reason %}
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Reason: {{ user_membership.rejection_reason }}</p>
+                {% endif %}
+                <form method="post" action="{% url 'organizations:request_org_membership' org_pk=organization.pk %}" class="mt-3">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-secondary w-full">Request Again</button>
+                </form>
                 {% endif %}
             {% else %}
             <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">You are not a member of this organization.</p>
@@ -44,6 +144,55 @@
             </form>
             {% endif %}
         </div>
+
+        <!-- Members (compact view) -->
+        <div class="card">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Members</h2>
+            {% if managers %}
+            <div class="mb-4">
+                <h3 class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Managers</h3>
+                <div class="flex flex-wrap gap-2">
+                    {% for m in managers %}
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" @click.away="open = false" class="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors">
+                            {{ m.user.get_short_name|default:m.user.email }}
+                        </button>
+                        <div x-show="open" x-transition @click="navigator.clipboard.writeText('{{ m.user.email }}'); showToast = true; setTimeout(() => showToast = false, 2000); open = false" class="absolute z-10 mt-1 left-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 min-w-max cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-gray-700 dark:text-gray-300">{{ m.user.email }}</span>
+                                <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% if members %}
+            <div>
+                <h3 class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Members</h3>
+                <div class="flex flex-wrap gap-2">
+                    {% for m in members %}
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" @click.away="open = false" class="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                            {{ m.user.get_short_name|default:m.user.email }}
+                        </button>
+                        <div x-show="open" x-transition @click="navigator.clipboard.writeText('{{ m.user.email }}'); showToast = true; setTimeout(() => showToast = false, 2000); open = false" class="absolute z-10 mt-1 left-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 min-w-max cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-gray-700 dark:text-gray-300">{{ m.user.email }}</span>
+                                <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% if not managers and not members %}
+            <p class="text-gray-500 dark:text-gray-400 text-sm">No members yet.</p>
+            {% endif %}
+        </div>
     </div>
+</div>
 </div>
 {% endblock %}
