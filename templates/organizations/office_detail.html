@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 {% block title %}{{ office }} - {{ brand_name|default:"Papertrail" }}{% endblock %}
 {% block content %}
-<div x-data="{ showToast: false, toastMessage: '', toastType: 'success' }" class="relative">
+<div x-data="{ showToast: false, toastMessage: '', toastType: 'success' }"
+     @show-toast.window="showToast = true; toastMessage = $event.detail.message; toastType = $event.detail.type; setTimeout(() => showToast = false, 3000)"
+     class="relative">
 <!-- Standard Toast Component -->
 {% include "includes/toast.html" %}
 
@@ -167,7 +169,7 @@
                         <button @click="open = !open" @click.away="open = false" class="px-2 py-1 text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded cursor-pointer hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors">
                             {{ m.user.get_short_name|default:m.user.email }}
                         </button>
-                        <div x-show="open" x-transition @click="navigator.clipboard.writeText('{{ m.user.email }}'); toastMessage = 'Copied to clipboard'; toastType = 'success'; showToast = true; setTimeout(() => showToast = false, 3000); open = false" class="absolute z-10 mt-1 left-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 min-w-max cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <div x-show="open" x-transition @click="navigator.clipboard.writeText('{{ m.user.email }}'); $dispatch('show-toast', { message: 'Copied to clipboard', type: 'success' }); open = false" class="absolute z-10 mt-1 left-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 min-w-max cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700">
                             <div class="flex items-center gap-2">
                                 <span class="text-xs text-gray-700 dark:text-gray-300">{{ m.user.email }}</span>
                                 <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
@@ -187,7 +189,7 @@
                         <button @click="open = !open" @click.away="open = false" class="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
                             {{ m.user.get_short_name|default:m.user.email }}
                         </button>
-                        <div x-show="open" x-transition @click="navigator.clipboard.writeText('{{ m.user.email }}'); toastMessage = 'Copied to clipboard'; toastType = 'success'; showToast = true; setTimeout(() => showToast = false, 3000); open = false" class="absolute z-10 mt-1 left-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 min-w-max cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <div x-show="open" x-transition @click="navigator.clipboard.writeText('{{ m.user.email }}'); $dispatch('show-toast', { message: 'Copied to clipboard', type: 'success' }); open = false" class="absolute z-10 mt-1 left-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 min-w-max cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700">
                             <div class="flex items-center gap-2">
                                 <span class="text-xs text-gray-700 dark:text-gray-300">{{ m.user.email }}</span>
                                 <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
