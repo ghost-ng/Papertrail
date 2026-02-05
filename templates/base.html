@@ -31,6 +31,56 @@
         .focus\:border-indigo-500:focus { border-color: var(--brand-primary) !important; }
         .dark .dark\:text-indigo-400 { color: var(--brand-primary) !important; filter: brightness(1.2); }
         .dark .dark\:bg-indigo-900 { background-color: var(--brand-primary) !important; opacity: 0.3; }
+
+        /* Modern Custom Tooltips */
+        [data-tooltip] {
+            position: relative;
+        }
+        [data-tooltip]::before,
+        [data-tooltip]::after {
+            position: absolute;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.15s ease-in-out, visibility 0.15s ease-in-out;
+            pointer-events: none;
+            z-index: 50;
+        }
+        [data-tooltip]::before {
+            content: attr(data-tooltip);
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 6px 10px;
+            background: #1f2937;
+            color: white;
+            font-size: 12px;
+            font-weight: 500;
+            border-radius: 6px;
+            white-space: nowrap;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        [data-tooltip]::after {
+            content: '';
+            bottom: calc(100% + 2px);
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: #1f2937;
+        }
+        [data-tooltip]:hover::before,
+        [data-tooltip]:hover::after {
+            opacity: 1;
+            visibility: visible;
+        }
+        .dark [data-tooltip]::before {
+            background: #e5e7eb;
+            color: #1f2937;
+        }
+        .dark [data-tooltip]::after {
+            border-top-color: #e5e7eb;
+        }
+        /* Hide default browser tooltips */
+        [data-tooltip][title] { title: none; }
     </style>
     {% block extra_head %}{% endblock %}
 </head>
@@ -52,19 +102,19 @@
                         <a href="{% url 'organizations:organization_list' %}" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2">Organizations</a>
                     </div>
                 </div>
-                <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-2">
                     <!-- Notification Bell -->
                     <div class="relative" x-data="notificationBell()" x-init="startPolling()">
-                        <a href="{% url 'collaboration:notifications' %}" class="relative p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700" title="Notifications">
+                        <a href="{% url 'collaboration:notifications' %}" class="relative inline-flex items-center justify-center w-9 h-9 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" data-tooltip="Notifications">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
                             </svg>
-                            <span x-show="unreadCount > 0" x-text="unreadCount > 99 ? '99+' : unreadCount" class="absolute -top-1 -right-1 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white bg-red-600 rounded-full min-w-[18px]"></span>
+                            <span x-show="unreadCount > 0" x-text="unreadCount > 99 ? '99+' : unreadCount" class="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white bg-red-600 rounded-full min-w-[18px]"></span>
                         </a>
                     </div>
 
                     <!-- Dark mode toggle -->
-                    <button @click="darkMode = !darkMode" class="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700" title="Toggle dark mode">
+                    <button @click="darkMode = !darkMode" class="inline-flex items-center justify-center w-9 h-9 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" data-tooltip="Toggle dark mode">
                         <svg x-show="!darkMode" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
                         </svg>
