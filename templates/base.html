@@ -237,8 +237,19 @@
     {% endif %}
 
     <!-- Global Toast for JS-triggered notifications (clipboard copy, etc.) -->
+    <!-- Toast Types: success, error, warning, info -->
     <div id="global-toast"
-         x-data="{ showToast: false, toastMessage: '', toastType: 'success' }"
+         x-data="{
+             showToast: false,
+             toastMessage: '',
+             toastType: 'success',
+             colors: {
+                 success: '#16a34a',
+                 error: '#dc2626',
+                 warning: '#f59e0b',
+                 info: '#1f2937'
+             }
+         }"
          @show-toast.window="showToast = true; toastMessage = $event.detail.message; toastType = $event.detail.type || 'success'; setTimeout(() => showToast = false, 3000)"
          x-show="showToast"
          x-transition:enter="transition ease-out duration-300"
@@ -247,18 +258,16 @@
          x-transition:leave="transition ease-in duration-200"
          x-transition:leave-start="opacity-100 translate-y-0"
          x-transition:leave-end="opacity-0 translate-y-2"
-         style="position: fixed; bottom: 1rem; right: 1rem; z-index: 9999;"
-         class="flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium"
-         :class="{
-             'bg-green-600': toastType === 'success',
-             'bg-red-600': toastType === 'error',
-             'bg-amber-500': toastType === 'warning',
-             'bg-gray-800': toastType === 'info' || !toastType
-         }">
+         :style="'position: fixed; bottom: 1rem; right: 1rem; z-index: 9999; background-color: ' + colors[toastType] + ';'"
+         class="flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium">
+        <!-- Success icon -->
         <svg x-show="toastType === 'success'" class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-        <svg x-show="toastType === 'error'" class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        <!-- Error icon -->
+        <svg x-show="toastType === 'error'" class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <!-- Warning icon -->
         <svg x-show="toastType === 'warning'" class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-        <svg x-show="toastType === 'info' || !toastType" class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <!-- Info icon -->
+        <svg x-show="toastType === 'info'" class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
         <span x-text="toastMessage"></span>
     </div>
 
