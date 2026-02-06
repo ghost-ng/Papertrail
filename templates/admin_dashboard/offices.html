@@ -22,13 +22,13 @@
                 <input type="text" name="q" value="{{ search_query }}" placeholder="Search offices..."
                        class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-indigo-500 focus:border-indigo-500">
             </div>
-            <select name="org" class="shrink-0 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md text-sm">
+            <select name="org" class="min-w-[160px] px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md text-sm">
                 <option value="">All Organizations</option>
                 {% for org in organizations %}
                 <option value="{{ org.id }}" {% if org_filter == org.id|stringformat:"i" %}selected{% endif %}>{{ org.code }}</option>
                 {% endfor %}
             </select>
-            <select name="status" class="shrink-0 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md text-sm">
+            <select name="status" class="min-w-[120px] px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md text-sm">
                 <option value="">All Status</option>
                 <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
                 <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>

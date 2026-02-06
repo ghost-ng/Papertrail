@@ -67,17 +67,28 @@
                         {% endif %}
                     </div>
                 </div>
-                {% if not notification.is_read %}
-                <button
-                    @click="markRead({{ notification.pk }})"
-                    class="ml-4 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                    title="Mark as read"
-                >
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                    </svg>
-                </button>
-                {% endif %}
+                <div class="ml-4 flex items-center space-x-1">
+                    {% if not notification.is_read %}
+                    <button
+                        @click="markRead({{ notification.pk }})"
+                        class="p-1 text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors"
+                        title="Mark as read"
+                    >
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                    </button>
+                    {% endif %}
+                    <button
+                        @click="deleteNotification({{ notification.pk }}, {{ notification.is_read|yesno:'true,false' }})"
+                        class="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                        title="Delete notification"
+                    >
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
             </div>
         </div>
         {% endfor %}
@@ -140,6 +151,35 @@ function notificationsPage() {
                 }
             } catch (error) {
                 console.error('Failed to mark all notifications as read:', error);
+            }
+        },
+
+        async deleteNotification(notificationId, isRead) {
+            try {
+                const response = await fetch(`/collaboration/notifications/${notificationId}/delete/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '{{ csrf_token }}',
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (response.ok) {
+                    const el = document.getElementById(`notification-${notificationId}`);
+                    if (el) {
+                        el.remove();
+                    }
+                    // Decrement unread count if notification was unread
+                    if (!isRead) {
+                        this.unreadCount = Math.max(0, this.unreadCount - 1);
+                    }
+                    // Show empty state if no more notifications
+                    if (document.querySelectorAll('[id^="notification-"]').length === 0) {
+                        location.reload();
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to delete notification:', error);
             }
         }
     }

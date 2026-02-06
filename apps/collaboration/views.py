@@ -247,3 +247,23 @@ def notification_count(request):
     return JsonResponse({
         "unread_count": count,
     })
+
+
+@login_required
+@require_POST
+def delete_notification(request, notification_id):
+    """
+    POST /collaboration/notifications/<id>/delete/
+    Deletes a notification. Returns JSON.
+    """
+    notification = get_object_or_404(
+        Notification,
+        pk=notification_id,
+        user=request.user,
+    )
+    notification.delete()
+
+    return JsonResponse({
+        "success": True,
+        "notification_id": notification_id,
+    })

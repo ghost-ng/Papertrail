@@ -7,6 +7,7 @@ from apps.collaboration.views import (
     NotificationListView,
     add_comment,
     add_reply,
+    delete_notification,
     mark_all_notifications_read,
     mark_notification_read,
     notification_count,
@@ -41,6 +42,11 @@ urlpatterns = [
         "notifications/<int:notification_id>/read/",
         mark_notification_read,
         name="mark_read",
+    ),
+    path(
+        "notifications/<int:notification_id>/delete/",
+        delete_notification,
+        name="delete_notification",
     ),
     path(
         "notifications/mark-all-read/",
