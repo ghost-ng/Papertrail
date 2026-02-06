@@ -444,3 +444,59 @@ class OfficeEditView(LoginRequiredMixin, AuditLogMixin, UpdateView):
 
     def get_success_url(self):
         return self.object.get_absolute_url()
+
+
+class LeaveOrgMembershipView(LoginRequiredMixin, AuditLogMixin, View):
+    """Allow a user to leave an organization."""
+
+    def post(self, request, org_pk):
+        organization = get_object_or_404(Organization, pk=org_pk)
+
+        membership = OrganizationMembership.objects.filter(
+            user=request.user,
+            organization=organization,
+        ).first()
+
+        if not membership:
+            messages.error(request, "You are not a member of this organization.")
+            return redirect("organizations:organization_detail", pk=org_pk)
+
+        # Delete the membership
+        membership.delete()
+        messages.success(request, f"You have left {organization.code}.")
+        self.log_action(
+            action="membership_left",
+            resource_type="OrganizationMembership",
+            resource_id=f"{request.user.id}-{organization.id}",
+            organization=organization,
+        )
+
+        return redirect("organizations:organization_detail", pk=org_pk)
+
+
+class LeaveOfficeMembershipView(LoginRequiredMixin, AuditLogMixin, View):
+    """Allow a user to leave an office."""
+
+    def post(self, request, office_pk):
+        office = get_object_or_404(Office, pk=office_pk)
+
+        membership = OfficeMembership.objects.filter(
+            user=request.user,
+            office=office,
+        ).first()
+
+        if not membership:
+            messages.error(request, "You are not a member of this office.")
+            return redirect("organizations:office_detail", org_pk=office.organization.pk, pk=office_pk)
+
+        # Delete the membership
+        membership.delete()
+        messages.success(request, f"You have left {office.display_name}.")
+        self.log_action(
+            action="office_membership_left",
+            resource_type="OfficeMembership",
+            resource_id=f"{request.user.id}-{office.id}",
+            organization=office.organization,
+        )
+
+        return redirect("organizations:office_detail", org_pk=office.organization.pk, pk=office_pk)

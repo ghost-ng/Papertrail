@@ -87,7 +87,7 @@
                     <div class="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                         <div class="flex-1">
                             <div class="flex items-center space-x-2">
-                                <a href="{% url 'packages:package_detail' item.package.reference_number %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                                <a href="{% url 'packages:package_detail' item.package.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
                                     {{ item.package.reference_number }}
                                 </a>
                                 {% if item.package.priority == 'urgent' %}
@@ -101,7 +101,7 @@
                                 Stage: {{ item.stage.name }} ({{ item.stage.get_action_type_display }})
                             </p>
                         </div>
-                        <a href="{% url 'packages:stage_action' item.package.reference_number %}" class="ml-4 inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <a href="{% url 'packages:stage_action' item.package.pk %}" class="ml-4 inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                             Take Action
                         </a>
                     </div>
@@ -140,7 +140,7 @@
                             {% for package in my_packages %}
                             <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
                                 <td class="px-4 py-3 whitespace-nowrap">
-                                    <a href="{% url 'packages:package_detail' package.reference_number %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                                    <a href="{% url 'packages:package_detail' package.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
                                         {{ package.reference_number }}
                                     </a>
                                 </td>

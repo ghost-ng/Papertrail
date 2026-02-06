@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}Configure Routing - {{ package.reference_number }}{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <div class="flex justify-between items-start">
+        <div>
+            <nav class="flex mb-2" aria-label="Breadcrumb">
+                <ol class="inline-flex items-center space-x-1 md:space-x-3 text-sm text-gray-500 dark:text-gray-400">
+                    <li><a href="{% url 'packages:package_list' %}" class="hover:text-blue-600 dark:hover:text-blue-400">Packages</a></li>
+                    <li class="flex items-center"><span class="mx-2">/</span><a href="{% url 'packages:package_detail' package.pk %}" class="hover:text-blue-600 dark:hover:text-blue-400">{{ package.reference_number }}</a></li>
+                    <li class="flex items-center"><span class="mx-2">/</span><span class="text-gray-700 dark:text-gray-300">Configure Routing</span></li>
+                </ol>
+            </nav>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Configure Routing</h1>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Assign offices to workflow stages and configure action recipients before submitting.
+            </p>
+        </div>
+    </div>
+</div>
+
+<form method="post" class="space-y-6">
+    {% csrf_token %}
+
+    <!-- Stage Assignments Section -->
+    <div class="card">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Stage Office Assignments</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Select which offices should handle each stage. The package will route through these offices in order.
+        </p>
+
+        <div class="space-y-4">
+            {% for item in stage_forms %}
+            <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-3">
+                            <div class="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                                <span class="text-sm font-medium text-blue-800 dark:text-blue-200">{{ forloop.counter }}</span>
+                            </div>
+                            <div>
+                                <h3 class="font-medium text-gray-900 dark:text-white">{{ item.stage.name }}</h3>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">
+                                    {{ item.stage.get_action_type_display }}
+                                    {% if item.stage.multi_office_rule == 'all' %}
+                                        <span class="ml-2 px-2 py-0.5 text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded">
+                                            All offices must complete
+                                        </span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="ml-4 flex-shrink-0 w-64">
+                        {{ item.form.stage_node_id }}
+                        {{ item.form.stage_name }}
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Assigned Offices
+                        </label>
+                        {{ item.form.offices }}
+                        {% if item.form.offices.errors %}
+                        <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ item.form.offices.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <p class="text-gray-500 dark:text-gray-400">No stages defined in this workflow.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Action Recipients Section -->
+    {% if action_forms %}
+    <div class="card">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Action Recipients</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Configure who should receive alerts or emails from action nodes in this workflow.
+        </p>
+
+        <div class="space-y-4">
+            {% for item in action_forms %}
+            <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4" x-data="{ recipientType: '{{ item.form.recipient_type.value|default:"" }}' }">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-3">
+                            <div class="flex-shrink-0 w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center">
+                                <svg class="h-4 w-4 text-purple-800 dark:text-purple-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    {% if item.action.action_type == 'send_email' %}
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                                    {% else %}
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                                    {% endif %}
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="font-medium text-gray-900 dark:text-white">{{ item.action.name }}</h3>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">{{ item.action.get_action_type_display }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="ml-4 flex-shrink-0 w-80">
+                        {{ item.form.action_node_id }}
+                        {{ item.form.action_name }}
+
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Recipient Type
+                        </label>
+                        <select name="{{ item.form.recipient_type.name }}" x-model="recipientType" class="input w-full mb-2">
+                            <option value="">-- Not configured --</option>
+                            <option value="user" {% if item.form.recipient_type.value == 'user' %}selected{% endif %}>Specific User</option>
+                            <option value="office" {% if item.form.recipient_type.value == 'office' %}selected{% endif %}>All Office Members</option>
+                            <option value="email" {% if item.form.recipient_type.value == 'email' %}selected{% endif %}>Email Address</option>
+                        </select>
+
+                        <!-- User selection (shown when type is 'user') -->
+                        <div x-show="recipientType === 'user'" x-cloak>
+                            {{ item.form.user }}
+                            <input type="text"
+                                   name="{{ item.form.user_display.name }}"
+                                   value="{{ item.form.user_display.value|default:'' }}"
+                                   class="input w-full"
+                                   placeholder="Search for user..."
+                                   data-user-search="true">
+                        </div>
+
+                        <!-- Office selection (shown when type is 'office') -->
+                        <div x-show="recipientType === 'office'" x-cloak>
+                            <select name="{{ item.form.office.name }}" class="input w-full">
+                                <option value="">Select office...</option>
+                                {% for office in item.form.office.field.queryset %}
+                                <option value="{{ office.pk }}" {% if item.form.office.value|stringformat:'i' == office.pk|stringformat:'i' %}selected{% endif %}>
+                                    {{ office.code }} - {{ office.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Email input (shown when type is 'email') -->
+                        <div x-show="recipientType === 'email'" x-cloak>
+                            <input type="email"
+                                   name="{{ item.form.email_address.name }}"
+                                   value="{{ item.form.email_address.value|default:'' }}"
+                                   class="input w-full"
+                                   placeholder="email@example.com">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Workflow Overview -->
+    <div class="card">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Workflow Overview</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            This is the routing path your package will follow.
+        </p>
+
+        <div class="relative">
+            <div class="flex items-center overflow-x-auto pb-4 space-x-2">
+                {% for item in stage_forms %}
+                <div class="flex items-center flex-shrink-0">
+                    <div class="border-2 border-blue-500 rounded-lg p-3 bg-blue-50 dark:bg-blue-900/30 min-w-[120px] text-center">
+                        <p class="text-xs text-blue-600 dark:text-blue-400 font-medium uppercase">{{ item.stage.get_action_type_display }}</p>
+                        <p class="text-sm font-medium text-gray-900 dark:text-white mt-1">{{ item.stage.name }}</p>
+                    </div>
+                    {% if not forloop.last %}
+                    <svg class="w-6 h-6 text-gray-400 dark:text-gray-600 mx-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                    {% endif %}
+                </div>
+                {% endfor %}
+
+                <!-- End marker -->
+                <div class="flex items-center flex-shrink-0">
+                    <svg class="w-6 h-6 text-gray-400 dark:text-gray-600 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                    <div class="border-2 border-green-500 rounded-lg p-3 bg-green-50 dark:bg-green-900/30 min-w-[100px] text-center">
+                        <p class="text-xs text-green-600 dark:text-green-400 font-medium uppercase">Complete</p>
+                        <p class="text-sm font-medium text-gray-900 dark:text-white mt-1">End</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Form Actions -->
+    <div class="flex justify-end space-x-3">
+        <a href="{% url 'packages:package_detail' package.pk %}" class="btn btn-secondary">Cancel</a>
+        <button type="submit" name="save" class="btn btn-secondary">Save Configuration</button>
+        <button type="submit" name="submit_to_routing" class="btn btn-primary">Submit to Routing</button>
+    </div>
+</form>
+{% endblock %}

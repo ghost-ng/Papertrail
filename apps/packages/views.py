@@ -12,9 +12,16 @@ from django.http import FileResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 
+from apps.core.mixins import AuditLogMixin
 from apps.organizations.models import OrganizationMembership, OfficeMembership, Organization, Office
-from apps.packages.forms import PackageForm, TabForm, DocumentUploadForm, WorkflowTemplateForm, StageActionForm
-from apps.packages.models import Package, Tab, Document, WorkflowTemplate, StageNode, ActionNode, NodeConnection
+from apps.packages.forms import (
+    PackageForm, TabForm, DocumentUploadForm, WorkflowTemplateForm, StageActionForm,
+    PackageStageAssignmentForm, PackageActionRecipientForm
+)
+from apps.packages.models import (
+    Package, Tab, Document, WorkflowTemplate, StageNode, ActionNode, NodeConnection,
+    PackageStageAssignment, PackageActionRecipient
+)
 from apps.packages.services import RoutingService, RoutingError
 
 
@@ -93,24 +100,82 @@ class PackageDetailView(LoginRequiredMixin, PackageAccessMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         package = self.object
+        user = self.request.user
 
-        # Add routing context if in routing
-        if package.status == Package.Status.IN_ROUTING and package.workflow_template:
+        # Check if user can manage this package (pause/cancel/priority)
+        context["can_manage"] = self._can_manage_package(user, package)
+
+        # Add current time for template comparisons (suspense date)
+        from django.utils import timezone as tz
+        context["now"] = tz.now()
+
+        # Get all workflow stages for overview with their assigned offices
+        if package.workflow_template:
+            stages = StageNode.objects.filter(
+                template=package.workflow_template
+            ).prefetch_related("assigned_offices").order_by("position_y", "position_x")
+
+            # Attach package-specific office assignments to each stage
+            stage_assignments = {
+                sa.stage_id: sa
+                for sa in PackageStageAssignment.objects.filter(
+                    package=package
+                ).prefetch_related("offices")
+            }
+
+            stages_with_assignments = []
+            for stage in stages:
+                if stage.id in stage_assignments:
+                    stage.display_offices = stage_assignments[stage.id].offices.all()
+                else:
+                    stage.display_offices = stage.assigned_offices.all()
+                stages_with_assignments.append(stage)
+
+            context["workflow_stages"] = stages_with_assignments
+
+        # Add routing context if in routing or on hold
+        if package.status in [Package.Status.IN_ROUTING, Package.Status.ON_HOLD] and package.workflow_template:
             service = RoutingService(package)
             context["current_stage"] = service.get_current_stage()
 
-            # Check if user can act
+            # Check if user can act (only if in routing, not on hold)
             stage = context["current_stage"]
-            if stage:
+            if stage and package.status == Package.Status.IN_ROUTING:
                 user_offices = OfficeMembership.objects.filter(
                     user=self.request.user,
                     status=OfficeMembership.STATUS_APPROVED,
                 ).values_list("office_id", flat=True)
-                context["can_act"] = stage.assigned_offices.filter(pk__in=user_offices).exists()
+                # Use package-specific assignment if available
+                assigned_offices = service.get_offices_for_stage(stage)
+                context["can_act"] = assigned_offices.filter(pk__in=user_offices).exists()
             else:
                 context["can_act"] = False
 
         return context
+
+    def _can_manage_package(self, user, package):
+        """Check if user can manage (pause/cancel/priority) this package."""
+        if user.is_superuser:
+            return True
+        if package.originator == user:
+            return True
+        # Org manager check
+        if OrganizationMembership.objects.filter(
+            user=user,
+            organization=package.organization,
+            role=OrganizationMembership.ROLE_MANAGER,
+            status=OrganizationMembership.STATUS_APPROVED,
+        ).exists():
+            return True
+        # Originating office manager check
+        if OfficeMembership.objects.filter(
+            user=user,
+            office=package.originating_office,
+            role=OfficeMembership.ROLE_MANAGER,
+            status=OfficeMembership.STATUS_APPROVED,
+        ).exists():
+            return True
+        return False
 
 
 class PackageCreateView(LoginRequiredMixin, PackageAccessMixin, CreateView):
@@ -219,13 +284,50 @@ class TabUpdateView(LoginRequiredMixin, UpdateView):
 
 
 class DocumentUploadView(LoginRequiredMixin, View):
+    def _check_upload_allowed(self, package):
+        """Check if document uploads are allowed at the current stage.
+
+        Returns (allowed, error_message) tuple.
+        """
+        if package.status != Package.Status.IN_ROUTING:
+            return True, None
+
+        # Get current stage
+        service = RoutingService(package)
+        current_stage = service.get_current_stage()
+
+        if current_stage and current_stage.action_type in [
+            StageNode.ActionType.COORD,
+            StageNode.ActionType.CONCUR,
+        ]:
+            return False, (
+                f"Document uploads are not allowed during {current_stage.get_action_type_display()} stages. "
+                "The package must be returned for revision before documents can be modified."
+            )
+
+        return True, None
+
     def get(self, request, tab_pk):
         tab = get_object_or_404(Tab, pk=tab_pk)
+
+        # Check if uploads are allowed
+        allowed, error_msg = self._check_upload_allowed(tab.package)
+        if not allowed:
+            messages.error(request, error_msg)
+            return redirect("packages:package_detail", pk=tab.package.pk)
+
         form = DocumentUploadForm(tab=tab)
         return render(request, "packages/document_upload.html", {"tab": tab, "package": tab.package, "form": form})
 
     def post(self, request, tab_pk):
         tab = get_object_or_404(Tab, pk=tab_pk)
+
+        # Check if uploads are allowed
+        allowed, error_msg = self._check_upload_allowed(tab.package)
+        if not allowed:
+            messages.error(request, error_msg)
+            return redirect("packages:package_detail", pk=tab.package.pk)
+
         form = DocumentUploadForm(request.POST, request.FILES, tab=tab)
         if form.is_valid():
             document = form.save(uploaded_by=request.user)
@@ -654,6 +756,245 @@ class PackageSubmitView(LoginRequiredMixin, View):
         return redirect("packages:package_detail", pk=pk)
 
 
+class PackageConfigureRoutingView(LoginRequiredMixin, View):
+    """Configure stage office assignments and action recipients before submitting."""
+
+    def get(self, request, pk):
+        package = get_object_or_404(Package, pk=pk)
+
+        # Check permissions
+        if package.originator != request.user and not request.user.is_superuser:
+            messages.error(request, "You can only configure routing for packages you created.")
+            return redirect("packages:package_detail", pk=pk)
+
+        if package.status != Package.Status.DRAFT:
+            messages.error(request, "Only draft packages can be configured for routing.")
+            return redirect("packages:package_detail", pk=pk)
+
+        if not package.workflow_template:
+            messages.error(request, "Package must have a workflow template to configure routing.")
+            return redirect("packages:package_detail", pk=pk)
+
+        # Get stages and actions from workflow template
+        stages = package.workflow_template.stagenode_nodes.all().prefetch_related(
+            "assigned_offices"
+        ).order_by("position_y", "position_x")
+        actions = package.workflow_template.actionnode_nodes.filter(
+            action_type__in=[ActionNode.ActionType.SEND_ALERT, ActionNode.ActionType.SEND_EMAIL]
+        ).order_by("position_y", "position_x")
+
+        # Build stage forms with existing assignments or template defaults
+        stage_forms = []
+        for stage in stages:
+            # Check for existing package-specific assignment
+            try:
+                assignment = PackageStageAssignment.objects.get(
+                    package=package, stage=stage
+                )
+                initial_offices = list(assignment.offices.values_list("id", flat=True))
+            except PackageStageAssignment.DoesNotExist:
+                # Use template defaults
+                initial_offices = list(stage.assigned_offices.values_list("id", flat=True))
+
+            form = PackageStageAssignmentForm(
+                prefix=f"stage_{stage.node_id}",
+                organization=package.organization,
+                initial={
+                    "stage_node_id": stage.node_id,
+                    "stage_name": stage.name,
+                    "offices": initial_offices,
+                }
+            )
+            stage_forms.append({
+                "stage": stage,
+                "form": form,
+            })
+
+        # Build action recipient forms
+        action_forms = []
+        for action in actions:
+            # Check for existing package-specific recipients
+            existing = PackageActionRecipient.objects.filter(
+                package=package, action_node=action
+            ).first()
+
+            initial = {
+                "action_node_id": action.node_id,
+                "action_name": action.name,
+            }
+            if existing:
+                initial["recipient_type"] = existing.recipient_type
+                if existing.user:
+                    initial["user"] = existing.user.id
+                    initial["user_display"] = existing.user.get_full_name() or existing.user.email
+                if existing.office:
+                    initial["office"] = existing.office.id
+                if existing.email_address:
+                    initial["email_address"] = existing.email_address
+
+            form = PackageActionRecipientForm(
+                prefix=f"action_{action.node_id}",
+                organization=package.organization,
+                initial=initial,
+            )
+            action_forms.append({
+                "action": action,
+                "form": form,
+            })
+
+        return render(request, "packages/configure_routing.html", {
+            "package": package,
+            "stage_forms": stage_forms,
+            "action_forms": action_forms,
+        })
+
+    def post(self, request, pk):
+        from django.db import transaction
+
+        package = get_object_or_404(Package, pk=pk)
+
+        # Check permissions
+        if package.originator != request.user and not request.user.is_superuser:
+            messages.error(request, "You can only configure routing for packages you created.")
+            return redirect("packages:package_detail", pk=pk)
+
+        if package.status != Package.Status.DRAFT:
+            messages.error(request, "Only draft packages can be configured for routing.")
+            return redirect("packages:package_detail", pk=pk)
+
+        if not package.workflow_template:
+            messages.error(request, "Package must have a workflow template to configure routing.")
+            return redirect("packages:package_detail", pk=pk)
+
+        # Get stages and actions from workflow template
+        stages = package.workflow_template.stagenode_nodes.all().order_by("position_y", "position_x")
+        actions = package.workflow_template.actionnode_nodes.filter(
+            action_type__in=[ActionNode.ActionType.SEND_ALERT, ActionNode.ActionType.SEND_EMAIL]
+        ).order_by("position_y", "position_x")
+
+        # Validate and collect form data
+        all_valid = True
+        stage_forms = []
+        action_forms = []
+
+        for stage in stages:
+            form = PackageStageAssignmentForm(
+                request.POST,
+                prefix=f"stage_{stage.node_id}",
+                organization=package.organization,
+            )
+            if not form.is_valid():
+                all_valid = False
+            stage_forms.append({
+                "stage": stage,
+                "form": form,
+            })
+
+        for action in actions:
+            form = PackageActionRecipientForm(
+                request.POST,
+                prefix=f"action_{action.node_id}",
+                organization=package.organization,
+            )
+            if not form.is_valid():
+                all_valid = False
+            action_forms.append({
+                "action": action,
+                "form": form,
+            })
+
+        if not all_valid:
+            return render(request, "packages/configure_routing.html", {
+                "package": package,
+                "stage_forms": stage_forms,
+                "action_forms": action_forms,
+            })
+
+        # Save all assignments in a transaction
+        with transaction.atomic():
+            # Save stage assignments
+            for item in stage_forms:
+                stage = item["stage"]
+                form = item["form"]
+                offices = form.cleaned_data.get("offices", [])
+
+                # Validate offices belong to package's organization
+                if offices and package.organization:
+                    invalid_offices = [o for o in offices if o.organization_id != package.organization_id]
+                    if invalid_offices:
+                        messages.error(request, "Selected offices must belong to the package's organization.")
+                        return render(request, "packages/configure_routing.html", {
+                            "package": package,
+                            "stage_forms": stage_forms,
+                            "action_forms": action_forms,
+                        })
+
+                # Delete existing assignment if any
+                PackageStageAssignment.objects.filter(
+                    package=package, stage=stage
+                ).delete()
+
+                # Create new assignment if offices were selected
+                if offices:
+                    assignment = PackageStageAssignment.objects.create(
+                        package=package,
+                        stage=stage,
+                    )
+                    assignment.offices.set(offices)
+
+            # Save action recipients
+            for item in action_forms:
+                action = item["action"]
+                form = item["form"]
+                recipient_type = form.cleaned_data.get("recipient_type")
+
+                # Delete existing recipients for this action
+                PackageActionRecipient.objects.filter(
+                    package=package, action_node=action
+                ).delete()
+
+                # Create new recipient if configured
+                if recipient_type:
+                    from django.contrib.auth import get_user_model
+                    User = get_user_model()
+
+                    recipient = PackageActionRecipient(
+                        package=package,
+                        action_node=action,
+                        recipient_type=recipient_type,
+                    )
+                    if recipient_type == "user":
+                        user_id = form.cleaned_data.get("user")
+                        if user_id:
+                            try:
+                                recipient.user = User.objects.get(pk=user_id)
+                            except User.DoesNotExist:
+                                # Skip saving this recipient if user doesn't exist
+                                continue
+                    elif recipient_type == "office":
+                        recipient.office = form.cleaned_data.get("office")
+                    elif recipient_type == "email":
+                        recipient.email_address = form.cleaned_data.get("email_address", "")
+                    recipient.save()
+
+        # Check if user wants to submit
+        if "submit_to_routing" in request.POST:
+            try:
+                service = RoutingService(package)
+                service.submit_package(request.user)
+                messages.success(
+                    request,
+                    f"Package {package.reference_number} configured and submitted to routing."
+                )
+            except RoutingError as e:
+                messages.error(request, str(e))
+                return redirect("packages:package_detail", pk=pk)
+        else:
+            messages.success(request, "Routing configuration saved.")
+
+        return redirect("packages:package_detail", pk=pk)
+
+
 class StageActionView(LoginRequiredMixin, View):
     """Take action at the current workflow stage."""
 
@@ -671,7 +1012,9 @@ class StageActionView(LoginRequiredMixin, View):
         ).values_list("office_id", flat=True)
 
         # Find which of user's offices is assigned to this stage
-        assigned = stage.assigned_offices.filter(pk__in=user_offices).first()
+        # Use package-specific assignment if available, else template default
+        assigned_offices = service.get_offices_for_stage(stage)
+        assigned = assigned_offices.filter(pk__in=user_offices).first()
         return assigned
 
     def get(self, request, pk):
@@ -753,3 +1096,150 @@ class StageActionView(LoginRequiredMixin, View):
             "stage": stage,
             "office": office,
         })
+
+
+class PackageManagementMixin:
+    """Mixin to check if user can manage a package (pause/cancel/change priority)."""
+
+    def can_manage_package(self, user, package):
+        """Check if user can manage this package.
+
+        Allowed: originator, org managers, originating office managers, superusers.
+        """
+        if user.is_superuser:
+            return True
+
+        if package.originator == user:
+            return True
+
+        # Check if user is an org manager for this package's org
+        if OrganizationMembership.objects.filter(
+            user=user,
+            organization=package.organization,
+            role=OrganizationMembership.ROLE_MANAGER,
+            status=OrganizationMembership.STATUS_APPROVED,
+        ).exists():
+            return True
+
+        # Check if user is manager of originating office
+        if OfficeMembership.objects.filter(
+            user=user,
+            office=package.originating_office,
+            role=OfficeMembership.ROLE_MANAGER,
+            status=OfficeMembership.STATUS_APPROVED,
+        ).exists():
+            return True
+
+        return False
+
+
+class PackagePauseView(LoginRequiredMixin, AuditLogMixin, PackageManagementMixin, View):
+    """Pause a package routing (put on hold)."""
+
+    def post(self, request, pk):
+        package = get_object_or_404(Package, pk=pk)
+
+        if not self.can_manage_package(request.user, package):
+            messages.error(request, "You don't have permission to manage this package.")
+            return redirect("packages:package_detail", pk=pk)
+
+        if package.status != Package.Status.IN_ROUTING:
+            messages.error(request, "Only packages in routing can be paused.")
+            return redirect("packages:package_detail", pk=pk)
+
+        package.status = Package.Status.ON_HOLD
+        package.save(update_fields=["status"])
+        self.log_action(
+            action="package_paused",
+            resource_type="Package",
+            resource_id=str(package.id),
+            organization=package.organization,
+        )
+        messages.success(request, f"Package {package.reference_number} has been paused.")
+        return redirect("packages:package_detail", pk=pk)
+
+
+class PackageResumeView(LoginRequiredMixin, AuditLogMixin, PackageManagementMixin, View):
+    """Resume a paused package routing."""
+
+    def post(self, request, pk):
+        package = get_object_or_404(Package, pk=pk)
+
+        if not self.can_manage_package(request.user, package):
+            messages.error(request, "You don't have permission to manage this package.")
+            return redirect("packages:package_detail", pk=pk)
+
+        if package.status != Package.Status.ON_HOLD:
+            messages.error(request, "Only paused packages can be resumed.")
+            return redirect("packages:package_detail", pk=pk)
+
+        package.status = Package.Status.IN_ROUTING
+        package.save(update_fields=["status"])
+        self.log_action(
+            action="package_resumed",
+            resource_type="Package",
+            resource_id=str(package.id),
+            organization=package.organization,
+        )
+        messages.success(request, f"Package {package.reference_number} has been resumed.")
+        return redirect("packages:package_detail", pk=pk)
+
+
+class PackageCancelView(LoginRequiredMixin, AuditLogMixin, PackageManagementMixin, View):
+    """Cancel a package routing."""
+
+    def post(self, request, pk):
+        package = get_object_or_404(Package, pk=pk)
+
+        if not self.can_manage_package(request.user, package):
+            messages.error(request, "You don't have permission to manage this package.")
+            return redirect("packages:package_detail", pk=pk)
+
+        if package.status not in [Package.Status.IN_ROUTING, Package.Status.ON_HOLD, Package.Status.DRAFT]:
+            messages.error(request, "This package cannot be cancelled.")
+            return redirect("packages:package_detail", pk=pk)
+
+        package.status = Package.Status.CANCELLED
+        package.save(update_fields=["status"])
+        self.log_action(
+            action="package_cancelled",
+            resource_type="Package",
+            resource_id=str(package.id),
+            organization=package.organization,
+        )
+        messages.success(request, f"Package {package.reference_number} has been cancelled.")
+        return redirect("packages:package_detail", pk=pk)
+
+
+class PackagePriorityView(LoginRequiredMixin, AuditLogMixin, PackageManagementMixin, View):
+    """Update package priority."""
+
+    def post(self, request, pk):
+        package = get_object_or_404(Package, pk=pk)
+
+        if not self.can_manage_package(request.user, package):
+            messages.error(request, "You don't have permission to manage this package.")
+            return redirect("packages:package_detail", pk=pk)
+
+        # Don't allow changing priority on completed/cancelled packages
+        if package.status in [Package.Status.COMPLETED, Package.Status.CANCELLED]:
+            messages.error(request, "Cannot change priority of completed or cancelled packages.")
+            return redirect("packages:package_detail", pk=pk)
+
+        new_priority = request.POST.get("priority")
+        if new_priority not in [choice[0] for choice in Package.Priority.choices]:
+            messages.error(request, "Invalid priority value.")
+            return redirect("packages:package_detail", pk=pk)
+
+        old_priority = package.priority
+        package.priority = new_priority
+        package.save(update_fields=["priority"])
+        self.log_action(
+            action="package_priority_changed",
+            resource_type="Package",
+            resource_id=str(package.id),
+            organization=package.organization,
+            details={"old_priority": old_priority, "new_priority": new_priority},
+        )
+        messages.success(request, f"Package priority updated to {package.get_priority_display()}.")
+        return redirect("packages:package_detail", pk=pk)

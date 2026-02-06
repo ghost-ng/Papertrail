@@ -16,16 +16,28 @@ class PackageForm(forms.ModelForm):
 
     class Meta:
         model = Package
-        fields = ["title", "priority", "workflow_template"]
+        fields = ["title", "priority", "priority_deadline", "workflow_template"]
         widgets = {
             "title": forms.TextInput(attrs={"class": "input", "placeholder": "Enter package title"}),
             "priority": forms.Select(attrs={"class": "input"}),
+            "priority_deadline": forms.DateTimeInput(attrs={
+                "class": "input",
+                "type": "datetime-local",
+                "placeholder": "Suspense date (optional)",
+            }),
             "workflow_template": forms.Select(attrs={"class": "input"}),
+        }
+        labels = {
+            "priority_deadline": "Suspense Date",
+        }
+        help_texts = {
+            "priority_deadline": "Optional deadline for package completion",
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["workflow_template"].required = False
+        self.fields["priority_deadline"].required = False
 
 
 class TabForm(forms.ModelForm):
@@ -198,6 +210,79 @@ class ActionNodeForm(forms.ModelForm):
         if commit:
             instance.save()
         return instance
+
+
+class PackageStageAssignmentForm(forms.Form):
+    """Form for assigning offices to a single stage when configuring routing."""
+
+    stage_node_id = forms.CharField(widget=forms.HiddenInput())
+    stage_name = forms.CharField(widget=forms.HiddenInput(), required=False)
+    offices = forms.ModelMultipleChoiceField(
+        queryset=Office.objects.none(),
+        widget=forms.SelectMultiple(attrs={"class": "input", "size": 4}),
+        required=False,
+        help_text="Select offices to assign to this stage",
+    )
+
+    def __init__(self, *args, organization=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if organization:
+            self.fields["offices"].queryset = Office.objects.filter(
+                organization=organization
+            ).order_by("code")
+        else:
+            self.fields["offices"].queryset = Office.objects.all().order_by("code")
+
+
+class PackageActionRecipientForm(forms.Form):
+    """Form for configuring recipients for action nodes."""
+
+    RECIPIENT_TYPE_CHOICES = [
+        ("user", "Specific User"),
+        ("office", "All Office Members"),
+        ("email", "Email Address"),
+    ]
+
+    action_node_id = forms.CharField(widget=forms.HiddenInput())
+    action_name = forms.CharField(widget=forms.HiddenInput(), required=False)
+    recipient_type = forms.ChoiceField(
+        choices=RECIPIENT_TYPE_CHOICES,
+        widget=forms.Select(attrs={"class": "input"}),
+        required=False,
+    )
+    user = forms.IntegerField(
+        required=False,
+        widget=forms.HiddenInput(),
+    )
+    user_display = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            "class": "input",
+            "placeholder": "Search for user...",
+            "data-user-search": "true",
+        }),
+    )
+    office = forms.ModelChoiceField(
+        queryset=Office.objects.none(),
+        required=False,
+        widget=forms.Select(attrs={"class": "input"}),
+    )
+    email_address = forms.EmailField(
+        required=False,
+        widget=forms.EmailInput(attrs={
+            "class": "input",
+            "placeholder": "email@example.com",
+        }),
+    )
+
+    def __init__(self, *args, organization=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if organization:
+            self.fields["office"].queryset = Office.objects.filter(
+                organization=organization
+            ).order_by("code")
+        else:
+            self.fields["office"].queryset = Office.objects.all().order_by("code")
 
 
 class StageActionForm(forms.Form):

@@ -9,6 +9,7 @@ from apps.packages.models import (
     ActionNode,
     NodeConnection,
     Package,
+    PackageStageAssignment,
     RoutingHistory,
     StageAction,
     StageCompletion,
@@ -58,6 +59,24 @@ class RoutingService:
         return self.template.stagenode_nodes.filter(
             node_id=self.package.current_node
         ).first()
+
+    def get_offices_for_stage(self, stage: StageNode):
+        """Get offices assigned to a stage for this package.
+
+        Checks for package-specific assignments first, then falls back
+        to the template's default assigned_offices.
+
+        Returns:
+            QuerySet of Office objects assigned to this stage for this package.
+        """
+        try:
+            assignment = PackageStageAssignment.objects.get(
+                package=self.package,
+                stage=stage,
+            )
+            return assignment.offices.all()
+        except PackageStageAssignment.DoesNotExist:
+            return stage.assigned_offices.all()
 
     def get_node(self, node_id: str) -> StageNode | ActionNode | None:
         """Get a node by ID (stage or action)."""
@@ -111,8 +130,8 @@ class RoutingService:
         if not stage:
             return False
 
-        # Check if office is assigned to this stage
-        if not stage.assigned_offices.filter(pk=office.pk).exists():
+        # Check if office is assigned to this stage (package-specific or template default)
+        if not self.get_offices_for_stage(stage).filter(pk=office.pk).exists():
             return False
 
         # For 'all' rule stages, check if this office already completed
@@ -142,8 +161,8 @@ class RoutingService:
         if stage.multi_office_rule == StageNode.MultiOfficeRule.ANY:
             return []
 
-        # For 'all' rule, get offices that haven't completed yet
-        assigned_office_ids = set(stage.assigned_offices.values_list("id", flat=True))
+        # For 'all' rule, get offices that haven't completed yet (package-specific or template default)
+        assigned_office_ids = set(self.get_offices_for_stage(stage).values_list("id", flat=True))
         completed_office_ids = set(
             StageCompletion.objects.filter(
                 package=self.package, node_id=stage.node_id
@@ -163,8 +182,8 @@ class RoutingService:
                 package=self.package, node_id=stage.node_id
             ).exists()
         else:
-            # All offices must complete
-            assigned_count = stage.assigned_offices.count()
+            # All offices must complete (package-specific or template default)
+            assigned_count = self.get_offices_for_stage(stage).count()
             if assigned_count == 0:
                 return True  # No offices assigned = auto-complete
             completed_count = StageCompletion.objects.filter(
@@ -426,14 +445,15 @@ class RoutingService:
 
         Sends PACKAGE_ARRIVED notifications to all office members.
         """
-        link = f"/packages/{self.package.reference_number}/"
+        link = f"/packages/{self.package.pk}/"
         title = "Package Requires Action"
         message = (
             f"Package {self.package.reference_number} has arrived at "
             f"{stage.name} ({stage.get_action_type_display()}) and requires your action."
         )
 
-        for office in stage.assigned_offices.all():
+        # Use package-specific office assignments if available, otherwise template defaults
+        for office in self.get_offices_for_stage(stage):
             NotificationService.notify_office(
                 office=office,
                 notification_type=Notification.NotificationType.PACKAGE_ARRIVED,

@@ -23,4 +23,8 @@ urlpatterns = [
     # Office membership views
     path("join/office/<int:office_pk>/", views.RequestOfficeMembershipView.as_view(), name="request_office_membership"),
     path("memberships/office/<int:pk>/approve/", views.ApproveOfficeMembershipView.as_view(), name="approve_office_membership"),
+
+    # Leave membership views
+    path("leave/org/<int:org_pk>/", views.LeaveOrgMembershipView.as_view(), name="leave_org_membership"),
+    path("leave/office/<int:office_pk>/", views.LeaveOfficeMembershipView.as_view(), name="leave_office_membership"),
 ]

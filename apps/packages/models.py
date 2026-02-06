@@ -634,3 +634,92 @@ class RoutingHistory(TimeStampedModel):
         if self.from_node:
             return f"{self.package.reference_number}: {self.from_node} -> {self.to_node}"
         return f"{self.package.reference_number}: -> {self.to_node} ({self.get_transition_type_display()})"
+
+
+class PackageStageAssignment(TimeStampedModel):
+    """Per-package office assignment for a workflow stage.
+
+    Allows package creators to override the template's default
+    assigned_offices for each stage when submitting to routing.
+    """
+
+    package = models.ForeignKey(
+        "packages.Package",
+        on_delete=models.CASCADE,
+        related_name="stage_assignments",
+    )
+    stage = models.ForeignKey(
+        "packages.StageNode",
+        on_delete=models.CASCADE,
+        related_name="package_assignments",
+    )
+    offices = models.ManyToManyField(
+        "organizations.Office",
+        related_name="package_stage_assignments",
+    )
+
+    class Meta:
+        unique_together = [["package", "stage"]]
+        indexes = [
+            models.Index(fields=["package", "stage"]),
+        ]
+
+    def __str__(self):
+        return f"{self.package.reference_number} - {self.stage.name}"
+
+
+class PackageActionRecipient(TimeStampedModel):
+    """Per-package recipient assignment for action nodes.
+
+    Allows package creators to specify recipients for email/alert
+    actions when submitting to routing.
+    """
+
+    class RecipientType(models.TextChoices):
+        USER = "user", "Specific User"
+        OFFICE = "office", "All Office Members"
+        EMAIL = "email", "Email Address"
+
+    package = models.ForeignKey(
+        "packages.Package",
+        on_delete=models.CASCADE,
+        related_name="action_recipients",
+    )
+    action_node = models.ForeignKey(
+        "packages.ActionNode",
+        on_delete=models.CASCADE,
+        related_name="package_recipients",
+    )
+    recipient_type = models.CharField(
+        max_length=10,
+        choices=RecipientType.choices,
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="action_recipient_assignments",
+    )
+    office = models.ForeignKey(
+        "organizations.Office",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="action_recipient_assignments",
+    )
+    email_address = models.EmailField(blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["package", "action_node"]),
+        ]
+
+    def __str__(self):
+        if self.recipient_type == self.RecipientType.USER and self.user:
+            return f"{self.package.reference_number} - {self.action_node.name} -> {self.user.email}"
+        elif self.recipient_type == self.RecipientType.OFFICE and self.office:
+            return f"{self.package.reference_number} - {self.action_node.name} -> {self.office.code}"
+        elif self.recipient_type == self.RecipientType.EMAIL:
+            return f"{self.package.reference_number} - {self.action_node.name} -> {self.email_address}"
+        return f"{self.package.reference_number} - {self.action_node.name}"
